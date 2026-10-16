@@ -1,5 +1,12 @@
 # @deskbell/shared
 
+## 0.1.2
+
+### Patch Changes
+
+- 30cf212: Ship a README with each package, and point `repository`, `homepage` and `bugs`
+  at the source and the docs.
+
 ## 0.1.1
 
 ### Patch Changes

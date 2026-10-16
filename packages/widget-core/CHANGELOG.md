@@ -1,5 +1,15 @@
 # @deskbell/widget
 
+## 0.1.2
+
+### Patch Changes
+
+- 30cf212: Ship a README with each package, and point `repository`, `homepage` and `bugs`
+  at the source and the docs.
+- Updated dependencies [30cf212]
+  - @deskbell/sdk@0.1.2
+  - @deskbell/shared@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
