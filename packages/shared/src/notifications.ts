@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConversationContextSchema } from "./conversation-context";
+import { ConversationContextSchema } from "./conversation-context.ts";
 
 /**
  * Project notifications (spec: project-notifications): the events a project

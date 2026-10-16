@@ -7,7 +7,7 @@ import {
   ProjectIdentitySchema,
   parseSignInDomains,
   SignInDomainsSchema,
-} from "./index";
+} from "./index.ts";
 
 describe("ProjectIdentitySchema", () => {
   it("requires an https issuer and defaults required to false", () => {

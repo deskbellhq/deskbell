@@ -10,7 +10,7 @@
  * Consumed by the dashboard's Appearance editor and by scripts/gen-widget-docs.ts.
  */
 
-import type { TokenName, WidgetOptionKey } from "./widget-config";
+import type { TokenName, WidgetOptionKey } from "./widget-config.ts";
 
 export type OptionGroup = "Identity" | "Theme" | "Launcher" | "Behaviour" | "Content";
 

@@ -1,6 +1,6 @@
 import { render } from "preact-render-to-string";
 import { describe, expect, it, vi } from "vitest";
-import { Markdown } from "./render";
+import { Markdown } from "./render.tsx";
 
 describe("Markdown", () => {
   it("renders structure with parts and escapes everything the model wrote", () => {

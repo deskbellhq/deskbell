@@ -20,7 +20,7 @@ export type IngestSourceJob = z.infer<typeof IngestSourceJobSchema>;
 
 // Re-exported so server code keeps one import; the widget reads it from
 // ./source-types, which carries no zod.
-export { CORRECTIONS_SOURCE_TYPE } from "./source-types";
+export { CORRECTIONS_SOURCE_TYPE } from "./source-types.ts";
 
 export const EmbedChunksJobSchema = z.object({
   orgId: z.string().min(1),

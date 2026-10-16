@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPrivateAddress, maskSecret, maskWebhookUrl, validateWebhookUrl } from "./webhook-url";
+import { isPrivateAddress, maskSecret, maskWebhookUrl, validateWebhookUrl } from "./webhook-url.ts";
 
 describe("validateWebhookUrl", () => {
   it("accepts https and normalises the URL", () => {

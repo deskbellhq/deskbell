@@ -9,11 +9,11 @@ import { ACTION_CITATION_KIND, CORRECTIONS_SOURCE_TYPE } from "@deskbell/shared/
 // Dependency-free by its own rules, so a value import costs nothing (AGENTS rule 5).
 import { UNSUPPORTED_NOTE_DEFAULT, type WidgetConfig } from "@deskbell/shared/widget-config";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { clampToViewport, isDrag, type Point, toDockOffsets } from "./drag";
-import { Markdown } from "./markdown/render";
-import { readScheme, SCHEME_ATTRIBUTES } from "./scheme";
-import { Sidebar } from "./sidebar";
-import { CSS } from "./styles";
+import { clampToViewport, isDrag, type Point, toDockOffsets } from "./drag.ts";
+import { Markdown } from "./markdown/render.tsx";
+import { readScheme, SCHEME_ATTRIBUTES } from "./scheme.ts";
+import { Sidebar } from "./sidebar.tsx";
+import { CSS } from "./styles.ts";
 
 interface PanelProps {
   /** Fully resolved config: defaults < server < attributes < JS calls. */

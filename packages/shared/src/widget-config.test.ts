@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WidgetAppearanceSchema } from "./index";
+import { WidgetAppearanceSchema } from "./index.ts";
 import {
   coerceConfigObject,
   configFromAttributes,
@@ -12,7 +12,7 @@ import {
   sanitizeCssValue,
   TOKENS,
   WIDGET_OPTIONS,
-} from "./widget-config";
+} from "./widget-config.ts";
 
 const attrs = (map: Record<string, string>) => (attr: string) => map[attr] ?? null;
 

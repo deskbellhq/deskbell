@@ -6,7 +6,7 @@ import {
   actionToolTitle,
   actionVisitorLabel,
   humanizeKey,
-} from "./actions";
+} from "./actions.ts";
 
 describe("actionToolTitle (spec: action-presentation)", () => {
   it("prefers the tool's title, then the annotation, then a readable name", () => {

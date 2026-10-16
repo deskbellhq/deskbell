@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampToViewport, isDrag, toDockOffsets } from "./drag";
+import { clampToViewport, isDrag, toDockOffsets } from "./drag.ts";
 
 describe("launcher drag geometry", () => {
   it("treats small pointer travel as a click", () => {

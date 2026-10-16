@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInline, parseMarkdown, safeHref } from "./markdown";
+import { parseInline, parseMarkdown, safeHref } from "./markdown.ts";
 
 const text = (v: string) => ({ t: "text", v });
 

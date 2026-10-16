@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACTION_CITATION_KIND } from "./source-types";
+import { ACTION_CITATION_KIND } from "./source-types.ts";
 
 /**
  * Actions through MCP (spec: mcp-actions). A project attaches remote MCP

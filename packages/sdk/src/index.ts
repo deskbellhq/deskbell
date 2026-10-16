@@ -8,8 +8,8 @@ import type {
   WidgetConversation,
   WidgetMessage,
 } from "@deskbell/shared";
-import { DeskbellError, retryAfterSeconds } from "./errors";
-import { readSse } from "./sse";
+import { DeskbellError, retryAfterSeconds } from "./errors.ts";
+import { readSse } from "./sse.ts";
 
 export type {
   AnswerEvent,
@@ -22,8 +22,8 @@ export type {
   WidgetConversation,
   WidgetMessage,
 } from "@deskbell/shared";
-export { DeskbellError } from "./errors";
-export { readSse } from "./sse";
+export { DeskbellError } from "./errors.ts";
+export { readSse } from "./sse.ts";
 
 export interface DeskbellClientOptions {
   /** Origin of the Deskbell server, no trailing slash. Empty means same origin. */

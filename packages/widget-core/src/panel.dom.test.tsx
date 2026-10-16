@@ -3,7 +3,7 @@ import type { AnswerEvent, WidgetConversation, WidgetMessage } from "@deskbell/s
 import { resolveWidgetConfig, type WidgetConfig } from "@deskbell/shared/widget-config";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Panel } from "./panel";
+import { Panel } from "./panel.tsx";
 
 /**
  * The panel against a fake SDK client (spec: widget-browser-tests). The

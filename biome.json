@@ -71,6 +71,21 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "packages/sdk/src/**",
+        "packages/shared/src/**",
+        "packages/widget-core/src/**",
+        "packages/widget-react/src/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useImportExtensions": "error"
+          }
+        }
+      }
     }
   ]
 }

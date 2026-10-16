@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IGNORED_TERM_LIMIT, ProjectGapsSchema, parseIgnoredTerms } from "./index";
+import { IGNORED_TERM_LIMIT, ProjectGapsSchema, parseIgnoredTerms } from "./index.ts";
 
 describe("ProjectGapsSchema", () => {
   it("accepts an empty document and an empty list as different things", () => {

@@ -8,7 +8,7 @@ import {
   type WidgetConfig,
 } from "@deskbell/shared/widget-config";
 import { h, render } from "preact";
-import { type OpenOptions, Panel, type PanelControls } from "./panel";
+import { type OpenOptions, Panel, type PanelControls } from "./panel.tsx";
 
 /**
  * <deskbell-widget> — shadow-DOM custom element (style isolation both ways).

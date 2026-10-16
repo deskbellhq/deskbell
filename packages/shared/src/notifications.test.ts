@@ -10,7 +10,7 @@ import {
   templateValues,
   validateLinkTemplate,
   validateMessageTemplate,
-} from "./notifications";
+} from "./notifications.ts";
 
 describe("ProjectNotificationsSchema", () => {
   it("accepts an empty document and a fully configured one", () => {

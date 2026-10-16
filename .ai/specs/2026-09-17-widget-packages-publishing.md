@@ -41,6 +41,17 @@ React program. With emitted declarations that shim goes away: the wrapper's
 `paths` map the package name to `../widget-core/dist/index.d.ts`, which Turbo
 builds first (`typecheck` depends on `^build`).
 
+**Import extensions.** Node resolves a relative import in an ES module
+exactly as written, so `./errors` in an emitted file fails outside a bundler;
+0.1.0 shipped that way and `@deskbell/sdk` could not be imported from a Node
+program. Relative imports in the four packages' sources carry their `.ts` or
+`.tsx` extension, which `rewriteRelativeImportExtensions` turns into `.js` in
+the emitted JavaScript and declaration files resolve as written. Biome's
+`useImportExtensions` rule is an error for those four source trees, so an
+extensionless import cannot come back. The `.js` spelling was tried first and
+rejected: the web application imports the same sources through its bundler,
+which does not map `.js` back to `.ts`, and its build broke.
+
 ## Non-goals
 
 - Publishing `@deskbell/ui` (vendored dashboard components) or anything AGPL.
@@ -67,3 +78,7 @@ builds first (`typecheck` depends on `^build`).
   bundles it with esbuild. Done: types resolve, the bundle contains the element
   and no zod.
 - `deskbell.js` gzip size unchanged within half a kilobyte. Done: 16.5 to 16.6 KB.
+- The packed `@deskbell/sdk` and `@deskbell/shared` import under plain Node
+  (`node -e "import('@deskbell/sdk')"`) with no bundler, and a consumer file
+  importing all four typechecks under `moduleResolution: nodenext` with
+  `skipLibCheck` off. Done, 2026-10-16, after the 0.1.0 failure.

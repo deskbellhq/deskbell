@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ActionCallStatus, ActionDetail, WidgetAction } from "./actions";
-import { type ConversationContext, ConversationContextSchema } from "./conversation-context";
+import type { ActionCallStatus, ActionDetail, WidgetAction } from "./actions.ts";
+import { type ConversationContext, ConversationContextSchema } from "./conversation-context.ts";
 import {
   COPY_KEYS,
   FEEDBACK_REASON_LIMITS,
@@ -10,15 +10,15 @@ import {
   WIDGET_OPTIONS,
   type WidgetAppearance,
   type WidgetOption,
-} from "./widget-config";
+} from "./widget-config.ts";
 
-export * from "./actions";
-export * from "./conversation-context";
-export * from "./jobs";
-export * from "./notification-signature";
-export * from "./notifications";
-export * from "./webhook-url";
-export * from "./widget-config";
+export * from "./actions.ts";
+export * from "./conversation-context.ts";
+export * from "./jobs.ts";
+export * from "./notification-signature.ts";
+export * from "./notifications.ts";
+export * from "./webhook-url.ts";
+export * from "./widget-config.ts";
 
 /**
  * Wire contracts shared by the widget, SDK, server, and engine.

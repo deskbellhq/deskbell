@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DeskbellClient, DeskbellError } from "./index";
+import { DeskbellClient, DeskbellError } from "./index.ts";
 
 type Call = { url: string; init: RequestInit | undefined };
 

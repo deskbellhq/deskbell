@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PARTS, SLOTS, TOKENS } from "@deskbell/shared/widget-config";
 import { describe, expect, it } from "vitest";
-import { CSS } from "./styles";
+import { CSS } from "./styles.ts";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panelSource = read("./panel.tsx");

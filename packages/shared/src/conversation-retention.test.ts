@@ -3,7 +3,7 @@ import {
   CONVERSATION_RETENTION_MAX_DAYS,
   CONVERSATION_RETENTION_PRESETS,
   ConversationRetentionDaysSchema,
-} from "./index";
+} from "./index.ts";
 
 describe("ConversationRetentionDaysSchema", () => {
   it("reads a form field: digits parse, blank is keep-forever", () => {

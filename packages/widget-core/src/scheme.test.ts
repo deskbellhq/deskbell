@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { schemeFromAttributes } from "./scheme";
+import { schemeFromAttributes } from "./scheme.ts";
 
 describe("schemeFromAttributes", () => {
   it("reads data attributes first, then a dark or light class", () => {

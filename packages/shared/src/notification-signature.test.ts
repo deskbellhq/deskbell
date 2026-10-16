@@ -3,7 +3,7 @@ import {
   newSigningSecret,
   signNotification,
   verifyNotificationSignature,
-} from "./notification-signature";
+} from "./notification-signature.ts";
 
 describe("notification signature", () => {
   const secret = "whsec_test";
