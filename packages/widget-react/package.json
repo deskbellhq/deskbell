@@ -3,6 +3,22 @@
   "version": "0.1.1",
   "description": "React wrapper around the Deskbell widget custom element.",
   "license": "MIT",
+  "homepage": "https://deskbell.dev/docs/widget/install#react",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deskbellhq/deskbell.git",
+    "directory": "packages/widget-react"
+  },
+  "bugs": "https://github.com/deskbellhq/deskbell/issues",
+  "keywords": [
+    "deskbell",
+    "widget",
+    "react",
+    "docs",
+    "support",
+    "chat",
+    "ai"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

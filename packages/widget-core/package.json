@@ -3,6 +3,23 @@
   "version": "0.1.1",
   "description": "The Deskbell widget as a custom element: shadow DOM, Preact, brandable through tokens, parts and slots.",
   "license": "MIT",
+  "homepage": "https://deskbell.dev/docs/widget/install",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deskbellhq/deskbell.git",
+    "directory": "packages/widget-core"
+  },
+  "bugs": "https://github.com/deskbellhq/deskbell/issues",
+  "keywords": [
+    "deskbell",
+    "widget",
+    "web-component",
+    "custom-element",
+    "docs",
+    "support",
+    "chat",
+    "ai"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

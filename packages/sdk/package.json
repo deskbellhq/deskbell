@@ -3,6 +3,23 @@
   "version": "0.1.1",
   "description": "Typed client for the Deskbell public API: streamed answers, conversations, feedback.",
   "license": "MIT",
+  "homepage": "https://deskbell.dev/docs/developer/sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deskbellhq/deskbell.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": "https://github.com/deskbellhq/deskbell/issues",
+  "keywords": [
+    "deskbell",
+    "sdk",
+    "client",
+    "api",
+    "sse",
+    "docs",
+    "support",
+    "ai"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
