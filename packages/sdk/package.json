@@ -1,6 +1,6 @@
 {
   "name": "@deskbell/sdk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Typed client for the Deskbell public API: streamed answers, conversations, feedback.",
   "license": "MIT",
   "type": "module",

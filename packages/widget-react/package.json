@@ -1,6 +1,6 @@
 {
   "name": "@deskbell/widget-react",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "React wrapper around the Deskbell widget custom element.",
   "license": "MIT",
   "type": "module",
