@@ -1,6 +1,6 @@
 {
   "name": "@deskbell/widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Deskbell widget as a custom element: shadow DOM, Preact, brandable through tokens, parts and slots.",
   "license": "MIT",
   "type": "module",
