@@ -1,0 +1,72 @@
+---
+title: Data retention
+description: Set how many days a conversation is kept after its last message; the worker removes older conversations every hour, with their messages, feedback and tool calls.
+updated: 2026-09-23
+---
+
+Under **Settings › Data retention** a project chooses how long conversations
+are kept. Past the window, an hourly job removes each conversation with its
+messages, citations, feedback and tool calls. The default keeps everything.
+Admins and owners change it; everyone can read it.
+
+## How the window is counted
+
+A conversation is past the window when it started before the cutoff and no
+message in it was written after the cutoff. The clock starts from the last
+message, not from the first: a visitor who returns to a thread and asks a
+follow-up keeps it for another full window. A thread the visitor deleted from
+the widget is kept for the dashboard until the same clock removes it.
+
+The page offers **Keep forever**, **30**, **90**, **180** and **365 days**, or
+a custom number from 1 to 3650. Under the control, the page says how many
+conversations are past the chosen window right now. That is the number the
+job removes.
+
+## What is removed, and what stays
+
+Removed with the conversation:
+
+- its messages, on both sides;
+- each answer's citations and the retrieval signal behind it;
+- feedback, reasons and comments;
+- the context the host page supplied;
+- every [action](/actions) call the conversation made, confirmed or not.
+
+Kept:
+
+- sources, pages and written answers;
+- [gap clusters](/operate/gaps) and their analysis — a cluster whose questions
+  have all been removed keeps its record but no longer appears in any period;
+- visitor profiles from [visitor identity](/widget/identity);
+- token usage totals.
+
+The Overview counts and the Gaps trends are computed from stored messages, so
+they shrink as history is removed.
+
+## Saving a window
+
+Saving a window that would remove conversations asks you to confirm and names
+the count. Saving **Keep forever**, or a window that nothing is past, saves at
+once. A saved window also runs the job for the project right away, so the
+first removal does not wait for the hourly tick.
+
+The status line under the control says when the job last ran for the project
+and how many conversations that run removed.
+
+## The job
+
+The worker runs `purge.conversations` every hour, at minute 41. It removes in
+batches of a thousand, oldest first, and stops after fifty batches per project
+in one run; a large backlog is removed over several runs and the log line says
+`capped=true` while it lasts. A removed conversation is gone at once: it leaves
+the inbox, the Overview, the Gaps page and the visitor's thread list. A widget
+that remembered the conversation starts a new one on its next message.
+
+## Scope
+
+- One window per project.
+- The window is a whole number of days from 1 to 3650, or 0 to keep everything.
+- Removal is permanent; the page confirms before a window that removes
+  anything is saved, and the database is yours to back up first
+  ([Upgrading](/deploy/upgrading)).
+- Visitor profiles and gap clusters are not removed by the window.

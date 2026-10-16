@@ -1,0 +1,53 @@
+---
+title: Manage a workspace
+sidebarTitle: Overview
+description: How an instance is organised into one organisation with projects, where each setting lives in the dashboard, and which role can change what.
+updated: 2026-09-23
+---
+
+An instance holds one **organisation**. The organisation holds **projects**;
+a project is one widget, one set of sources, one public key and one set of
+settings. Every row in the database carries the organisation id, and every
+query in the dashboard is scoped by it.
+
+The dashboard works on the organisation's first project. The seeded
+development project is `proj_dev`, with public key `pk_dev_default`.
+
+## Where each setting lives
+
+| Settings page | What it holds | Who can change it |
+|---|---|---|
+| Account | Your display name; sign out | Anyone, their own |
+| Members | Members and roles, invitations, the sign-in domains for Google | Admin |
+| Appearance | The widget's look and behaviour, with a live preview | Editor |
+| Install | The embed snippet, the public key, the origin allowlist, the daily token budget, where the widget has been seen | Admin for the allowlist and budget; anyone can read |
+| Visitor identity | The OpenID issuer the widget endpoints verify tokens from | Admin |
+| Notifications | Slack and webhook targets, the events each receives | Admin |
+| Data retention | How many days a conversation is kept after its last message before the hourly job removes it | Admin |
+
+Sources, written answers and gaps live in the main navigation, not under
+Settings; editors manage them.
+
+## Roles at a glance
+
+| Role | Can |
+|---|---|
+| `viewer` | Read everything: conversations, gaps, sources, settings |
+| `editor` | Viewer, plus add and sync sources, write answers, resolve gaps, edit appearance, re-embed |
+| `admin` | Editor, plus the origin allowlist and token budget, members and invitations, visitor identity, notifications, data retention, re-cluster |
+| `owner` | Admin. The first account on an instance; one per organisation |
+
+[Members and roles](/manage/members-and-roles) has the full matrix and the
+invitation flow; [Authentication](/manage/authentication) covers how people
+sign in; [Security](/manage/security) covers the widget endpoints, which are
+public by design and protected by other means.
+
+## Organisation-level settings
+
+The organisation itself has one setting, the list of **sign-in domains** on
+the Members page: a Google account at one of those domains joins as a viewer
+on first sign-in without an invitation. It is shown only when Google sign-in
+is configured.
+
+Organisations are not created or deleted from the dashboard. An instance is
+its organisation.

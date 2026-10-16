@@ -1,0 +1,174 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787242218476,
+      "tag": "0000_complex_spiral",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787312583930,
+      "tag": "0001_thick_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787334430000,
+      "tag": "0002_rare_eternity",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787335024561,
+      "tag": "0003_mighty_blockbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787562053185,
+      "tag": "0004_lowly_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787649399311,
+      "tag": "0005_youthful_dark_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787664312220,
+      "tag": "0006_shiny_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787688328153,
+      "tag": "0007_shiny_dracula",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789046863645,
+      "tag": "0008_lean_mister_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789047756542,
+      "tag": "0009_melted_plazm",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789049025652,
+      "tag": "0010_thankful_kronos",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789638492489,
+      "tag": "0011_thin_leper_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789651900894,
+      "tag": "0012_confused_havok",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789680792429,
+      "tag": "0013_abandoned_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789730189665,
+      "tag": "0014_blushing_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789732030994,
+      "tag": "0015_tricky_phil_sheldon",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789983794233,
+      "tag": "0016_strong_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790075936037,
+      "tag": "0017_clarified",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790077094156,
+      "tag": "0018_hesitant_domino",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790077516435,
+      "tag": "0019_mcp_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790101907825,
+      "tag": "0020_action_presentation",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790148075245,
+      "tag": "0021_conversation_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791184461279,
+      "tag": "0022_visitor_token_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792068289636,
+      "tag": "0023_answer_verification",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # The documentation site lives beside the code it describes so the two travel
+  # in one change. This makes that a rule rather than an intention: touching a
+  # surface a self-hoster configures, without touching the pages documenting it,
+  # fails. Put `[skip docs]` in the pull request body when a change really is
+  # invisible to an operator.
+  docs-travel-with-code:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documented surfaces
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          case "$PR_BODY" in
+            *"[skip docs]"*) echo "Override present, skipping."; exit 0 ;;
+          esac
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          documented=$(printf '%s\n' "$changed" | grep -E \
+            '^(apps/web/app/api/v1/|packages/shared/src/widget-config|packages/core/src/models/|\.env\.example$|docker-compose\.yml$)' \
+            || true)
+          if [ -z "$documented" ]; then
+            echo "No documented surface touched."
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -q '^apps/docs/content/'; then
+            echo "Documented surface touched, and the documentation moved with it."
+            exit 0
+          fi
+          echo "::error::These changes alter a surface self-hosters configure:"
+          printf '%s\n' "$documented"
+          echo "::error::Update apps/docs/content/ in the same pull request, or add [skip docs] to the body."
+          exit 1
+
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      # The widget's public reference is generated from its config descriptor;
+      # a stale table is a broken promise to everyone embedding the widget.
+      - run: pnpm docs:widget --check
+      # The HTTP API page and the OpenAPI document are generated from the zod
+      # schemas the server validates with; a stale document lies to clients.
+      - run: pnpm docs:openapi --check
+      # The eval gate (D8, spec: eval-harness). Runs the committed fixture set
+      # against a stub model and an in-memory store — no database, no API key,
+      # no network — and fails when a metric drops or a case changes grade.
+      # The report is appended to the job summary, where the numbers get read.
+      - run: pnpm evals:check
+
+  # The browser suite (spec: dashboard-browser-tests): a real Postgres, a
+  # production build, a registered user, the gaps page walked at desktop and
+  # phone width. No model key — the pages under test call no model.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: deskbell
+          POSTGRES_PASSWORD: deskbell
+          POSTGRES_DB: deskbell
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U deskbell"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://deskbell:deskbell@localhost:5432/deskbell
+      BETTER_AUTH_SECRET: ci-only-secret-never-production
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @deskbell/web exec playwright install --with-deps chromium
+      # The whole graph, not only the web app: the server serves deskbell.js
+      # from the built snippet, and the widget specs load it.
+      - run: pnpm build
+      - run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7

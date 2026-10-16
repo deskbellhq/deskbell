@@ -1,0 +1,123 @@
+---
+title: Theming
+description: Restyle the widget from the outside with CSS custom properties for colour, ::part() selectors for shape and layout, and named slots for your own markup, plus the side-panel recipe.
+updated: 2026-09-21
+---
+
+Colour is a token, shape is a part, and a region you want to own outright is a
+slot. Host-page CSS beats everything the widget resolves at runtime, and no
+rule in the widget uses `!important`. Every table below is rendered from the
+descriptor the widget reads.
+
+## Theme tokens
+
+CSS custom properties, set on the element or anywhere above it.
+
+```css
+deskbell-widget {
+  --deskbell-accent: #2b6b4f;
+  --deskbell-radius: 12px;
+}
+```
+
+<ThemeTokens />
+
+## Parts
+
+Shape and layout, through `::part()`. Rules the host page writes against a part
+beat the widget's own, because normal declarations from the outer page win over
+shadow-tree rules.
+
+<WidgetParts />
+
+A citation pill also carries `citation-kind-<type>`, where the type is the
+connector of the source the page came from, for example `docs-crawler`. Style
+one kind apart from the others, or label it:
+
+```css
+deskbell-widget::part(citation-kind-docs-crawler)::before {
+  content: "Docs ";
+  font-weight: 600;
+}
+```
+
+A cited [written answer](/knowledge/written-answers) is labelled by the widget
+itself: a pen glyph, the question, and a second line reading "Written answer".
+The line is the `writtenAnswer` copy key, so rename or translate it with
+`copy`, and it carries the `citation-label` part for styling. The pill's own
+part is `citation-kind-corrections`.
+
+## Slots
+
+Replace a region with your own markup.
+
+```html
+<deskbell-widget project-key="pk_live_...">
+  <button slot="launcher">Ask the docs</button>
+</deskbell-widget>
+```
+
+<WidgetSlots />
+
+## Following the page's theme
+
+`color-scheme-selector` names the element your site keeps its theme on,
+usually `html`. When its `class`, `data-theme`, `data-color-mode` or
+`data-bs-theme` says `dark` or `light`, the widget follows it and keeps
+following as the visitor toggles. Otherwise the configured `color-scheme`
+applies.
+
+```html
+<deskbell-widget project-key="pk_live_..." color-scheme-selector="html"></deskbell-widget>
+```
+
+## Recipes
+
+### A full-height side panel
+
+```html
+<script
+  async
+  src="https://your-deskbell.example.com/deskbell.js"
+  data-project-key="pk_live_..."
+  data-position="bottom-left"
+  data-launcher="none"
+  data-open-on-load="true"
+></script>
+```
+
+```css
+deskbell-widget::part(panel) {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  height: auto;
+  width: min(420px, 100vw);
+  border-radius: 0;
+}
+
+/* The widget is position: fixed and overlays the page. Make room for it. */
+body {
+  padding-left: min(420px, 100vw);
+}
+```
+
+Pinning `top` and `bottom` is enough. Leave `height: auto` and the panel fills
+the gap; `height: 100vh` is wrong on mobile, where browser chrome overlaps the
+viewport.
+
+Set `position="bottom-left"` even though the `::part()` rule already sets `left`.
+It clears the default `right` offset, which a right-to-left page would otherwise
+honour, snapping the rail back to the opposite edge.
+
+`launcher="none"` drops the bubble and `open-on-load` keeps the rail up. Omit
+both to open it from your own control instead. The close button still renders;
+hide it with `deskbell-widget::part(close-button) { display: none }` if the rail
+should never close.
+
+### Reach of CSS
+
+Recent conversations and the open thread are one view, not two panes. The widget
+shows one or the other, never both. A layout with the conversation list
+permanently beside the thread is out of reach from CSS, because the markup for
+both never exists at the same time.

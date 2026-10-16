@@ -1,0 +1,67 @@
+---
+title: Authentication
+description: How operators sign in to the dashboard, why the first account matters, what closes sign-up afterwards, how password reset and Google sign-in work, and what the session depends on.
+updated: 2026-09-21
+---
+
+The dashboard signs operators in with email and password, and with Google when
+configured. It works on a fresh `docker compose up` with no external identity
+provider, which keeps Postgres the only dependency. Sessions are cookies
+signed with `BETTER_AUTH_SECRET`; passwords are hashed with scrypt.
+
+## The first account
+
+A fresh instance has no users, and `/login` sends you to `/register`. The
+first account created becomes the organisation's **owner**. Claim it in the
+same sitting as exposing the instance: until you do, the owner seat belongs to
+whoever reaches `/register` first.
+
+## Sign-up is closed after that
+
+Once an owner exists, `/register` accepts only invited addresses; anything
+else is rejected on the server. People join through
+[invitations](/manage/members-and-roles#inviting-someone) or, with Google
+configured, through an allowed sign-in domain.
+
+## Email and password
+
+Sign-in and sign-up are rate limited in-process, per instance, on top of the
+closed sign-up rule.
+
+**Password reset** needs outbound email. With `SMTP_URL` and `EMAIL_FROM` set,
+**Forgot password** sends a single-use link that expires after one hour;
+requests are rate limited and answered identically whether or not the account
+exists, and a completed reset revokes every other session for that account.
+Without outbound email the page says the flow is unavailable, and recovery is
+an operator action on the database.
+
+## Sign in with Google
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and both `/login` and
+`/register` gain a Google button. Register
+`<BETTER_AUTH_URL>/api/auth/callback/google` as the redirect URI with Google.
+
+Who gets in follows the same rule as passwords, with one addition:
+
+| Google account | Result |
+|---|---|
+| The first account on the instance | Becomes the owner |
+| An invited address | Joins with the invited role |
+| An address at a listed [sign-in domain](/manage/members-and-roles#sign-in-domains) | Joins as a viewer |
+| An existing member | Signs in; a password account with the same email is linked to it |
+| Anything else | Refused, with the reason shown on the login page |
+
+Google must report the email as verified. This is a login method, not single
+sign-on: nothing forces members through Google, and nothing provisions or
+removes them from an identity provider. Enforced sign-on through an
+identity provider, SAML and SCIM belong to the Enterprise Edition; see
+[Licensing](/developer/licensing).
+
+## What the session depends on
+
+- `BETTER_AUTH_SECRET` signs the cookie. Changing it signs everyone out.
+- `BETTER_AUTH_URL` is the externally visible origin. Invitation and reset
+  links are built from it, and the Google redirect URI has to match it.
+- The dashboard and the public widget endpoints never share credentials: the
+  `/api/v1/*` routes read no cookies, and the dashboard reads no project key.
+  [Security](/manage/security) describes the public side.

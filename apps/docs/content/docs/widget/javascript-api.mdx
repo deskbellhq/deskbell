@@ -1,0 +1,108 @@
+---
+title: JavaScript API
+description: The deskbell() command vocabulary for opening, asking, configuring and mounting the widget, the events it dispatches on its element and window, and the queueing stub for calls made before the bundle loads.
+updated: 2026-09-21
+---
+
+The loader installs a global `deskbell()` function; the element itself exposes
+the same operations as methods (`open`, `close`, `toggle`, `ask`, `configure`)
+for pages that hold a reference to it. Events are `CustomEvent`s that bubble
+to `window`.
+
+## Commands
+
+```js
+deskbell("open");
+deskbell("close");
+deskbell("toggle");
+deskbell("open", { query: "How do I install?", submit: true });
+deskbell("ask", "How do I install?");
+deskbell("config", { accent: "#7c3aed", colorScheme: "dark" });
+deskbell("on", "answer", (e) => analytics.track("Docs answered", e.detail));
+deskbell("auth", () => session.accessToken); // signed-in visitors
+deskbell("mount"); // with data-render-on-load="false" on the script tag
+deskbell("unmount");
+```
+
+`open` with `query` prefills the composer; `submit: true` asks it straight
+away, which is what a search box hands over. `on` and `off` register a
+listener for an event from the table below. `mount` and `unmount` are for
+applications that show the widget on some routes only: put
+`data-render-on-load="false"` on the script tag and mount when you want it.
+`mount` accepts an object of option overrides.
+
+To call it before `deskbell.js` has loaded, install the queueing stub first.
+Calls are replayed in order once the bundle takes over.
+
+```html
+<script>
+  window.deskbell = function () {
+    (window.deskbell.q ??= []).push(arguments);
+  };
+</script>
+```
+
+`config` cannot override anything the host page set in CSS. See the
+[precedence order](/widget/configuration).
+
+## Events
+
+The widget dispatches `CustomEvent`s on its element. They bubble to `window`,
+so a tag manager can read them there with no SDK, and a page that holds the
+element can listen on it directly.
+
+```js
+window.addEventListener("deskbell:answer", (e) => {
+  analytics.track("Docs answered", e.detail);
+});
+```
+
+| Event | `detail` |
+|---|---|
+| `deskbell:ready` | none (once per element, after the first paint) |
+| `deskbell:opened` | none |
+| `deskbell:closed` | none |
+| `deskbell:question` | `question`, `conversationId` |
+| `deskbell:answer` | `question`, `conversationId`, `messageId`, `answer`, `citations`, and `unsupportedTerms` only when the answer named things the documentation does not contain |
+| `deskbell:refusal` | `question`, `reason` |
+| `deskbell:clarify` | `question`, `asked`, `options` |
+| `deskbell:feedback` | `messageId`, `feedback` |
+| `deskbell:limited` | `question`, `retryAfter` |
+| `deskbell:link` | `href` |
+| `deskbell:citation` | `href`, `documentId`, `title` |
+| `deskbell:conversation` | `id`, `action` (`created`, `opened`, `reset`, `deleted`) |
+| `deskbell:action` | `id`, `title`, `status` (`running`, `succeeded`, `failed`) — a tool ran on the visitor's behalf ([Actions](/actions)) |
+| `deskbell:confirm` | `id`, `title`, `summary`, `details` when a card appears; `id`, `approved`, `conversationId` when the visitor answers it |
+| `deskbell:unauthorized` | `question` |
+| `deskbell:preview` | `conversationId`, `title`, `owner`, `context` |
+| `deskbell:error` | `question`, `status` |
+
+`deskbell:refusal` is the one worth wiring up first. A refusal is a question your
+documentation did not answer, which is the most actionable signal the widget
+produces. Its `reason` is `no_context` when nothing relevant was retrieved,
+`no_grounding` when passages were retrieved but the model declined to answer
+from them, and `guardrail` when the answer failed for another reason. The
+widget shows the same copy for all of them.
+
+[Clarifying questions](/knowledge/clarifying-questions) covers the behaviour
+behind the next two events.
+
+`deskbell:clarify` fires instead of `deskbell:answer` when the server asked the
+visitor which reading they meant (`DESKBELL_CLARIFY=on`): `asked` is the
+question shown, `options` the page titles offered. The widget renders the
+options as buttons; a tap sends the option as the next question.
+
+`deskbell:answer` carries `unsupportedTerms` when the answer named a feature,
+setting, button or page the documentation does not contain (never with
+`DESKBELL_VERIFY=off`). The widget has already said so under the answer, in the assistant's
+voice, through the `unsupportedNote` copy key and the `hedge` part;
+[Answer verification](/knowledge/answer-verification) covers the check.
+
+## Lifecycle
+
+`deskbell:ready` fires once per element after the first paint; a listener
+registered before the bundle loads, through the queueing stub, still sees it.
+In a single-page application, `data-render-on-load="false"` on the script tag
+registers the element without mounting it; call `deskbell("mount")` on the
+routes that want the widget and `deskbell("unmount")` to remove it. Mounting
+again reuses the same session, so the visitor's threads carry across routes.

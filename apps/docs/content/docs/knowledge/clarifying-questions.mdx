@@ -1,0 +1,121 @@
+---
+title: Clarifying questions
+description: When the pages retrieved for a question answer it in more than one way, the assistant can ask which reading the visitor meant instead of answering for one of them.
+updated: 2026-09-22
+---
+
+Some questions are under-specified: "how do I configure it?" when three pages
+each configure something different. With `DESKBELL_CLARIFY=on` the assistant
+asks which one the visitor meant and offers those pages as options, instead of
+answering for whichever reading the model picked. The setting is off by
+default, and it is instance-wide rather than per project.
+
+## Turning it on
+
+```bash title=".env"
+DESKBELL_CLARIFY=on
+```
+
+Restart the web application. Nothing else changes: retrieval, citations and
+refusals behave exactly as before, and with the setting off the instruction the
+model reads is identical to the one it read before this existed.
+
+<Callout type="warn">
+It ships off because it costs accuracy. A model given permission to ask will
+sometimes ask about a question that had one obvious reading, and an exchange
+that could have been one answer becomes two turns. Measure it on your own
+corpus before turning it on for visitors; [What it costs](#what-it-costs) says
+how.
+</Callout>
+
+## When it asks
+
+Only when the retrieved pages actually disagree about what the question means,
+and nothing earlier in the conversation settles it. The model is told to answer
+and state its assumption when one reading is the usual one, and to ask only
+when the readings lead to different answers.
+
+What it offers is checked against what retrieval returned. Every option has to
+be the title of a page that was retrieved for that question; an option naming
+anything else is dropped, and if fewer than two survive, the turn becomes a
+`no grounding` refusal instead. So the widget never offers a page your corpus
+does not hold, and never invents a distinction out of the model's memory.
+
+Two to four options, and **one clarifying question per conversation**. After it
+has asked once, the instruction changes: answer the most likely reading and say
+what you assumed. A second question in the same thread becomes a refusal.
+
+The visitor's pick is an ordinary next message. It goes back through the same
+pipeline as any follow-up, so the question planner resolves it against the
+question that was asked and retrieval searches the resolved wording.
+
+## What the visitor sees
+
+The question, with the options as buttons under it. Tapping one sends it as the
+next message and the answer follows, cited as any other answer. The buttons
+belong to the most recent message; reopening the thread later shows the
+question and its options as text.
+
+A clarifying turn can be voted on like an answer. A thumbs-down on one is
+recorded and reaches the [Gaps](/operate/gaps) page.
+
+Building your own interface instead of using the widget: the `clarify` event
+carries the question and the options over the [HTTP API](/developer/api) and
+the [SDK](/developer/sdk), and sending an option back as the next message is
+the whole protocol. In the widget, the host page hears `deskbell:clarify`
+instead of `deskbell:answer`, and the buttons are styled through the
+`clarify-options` and `clarify-option` parts. [JavaScript API](/widget/javascript-api)
+covers both.
+
+## What it costs
+
+A clarifying question is a turn the visitor did not ask for. On questions that
+were genuinely ambiguous it replaces a guess; on questions that were not, it
+replaces an answer that was already correct, and the second kind is the one to
+watch.
+
+The [eval harness](/operate/evaluation) reports both sides. **Clarify rate** is
+the share of answerable questions that were asked about instead of answered,
+which is the cost. **Clarification** is the share of deliberately ambiguous
+questions that were asked about with the right options offered, which is the
+benefit. They are reported separately, and never averaged, for the same reason
+factuality and uncertainty are: asking about everything would make one of them
+perfect and the other unbearable.
+
+Run your own question set with the setting off, then on, and compare. A set
+with no ambiguous cases in it measures only the cost, so add cases of the kind
+before reading the result as a verdict.
+
+## Where it shows up
+
+A clarifying turn is stored as part of the conversation and marked **Asked to
+clarify** in the transcript on the Conversations page.
+
+It is **not** counted as a gap. It is not a refusal, and the weak-answer floor
+is a property of an answer, so a question asked back neither flags a row nor
+moves the weak count. What follows it does count: if the answer after the pick
+is refused or poorly grounded, that lands on the Gaps page as it would have
+anyway.
+
+## Fixing the content instead
+
+A fork that keeps coming back is usually a property of your documentation
+rather than of the visitor's question. Two pages with near-identical titles,
+or one page whose opening paragraph repeats another's, look like two readings
+of the same question to retrieval and to the model.
+
+When you see the same options offered again and again, the durable fix is on
+the content side: give the pages titles that say what distinguishes them, merge
+the ones that overlap, or [write an answer](/knowledge/written-answers) that
+handles the ambiguous phrasing directly. [Writing for retrieval](/knowledge/website)
+covers the same ground for refusals.
+
+## Limits
+
+- One clarifying question per conversation.
+- Options are page titles, always drawn from the pages retrieved for that
+  question. There is no way to offer an option of your own wording.
+- The setting is instance-wide. A deployment cannot turn it on for one project
+  and off for another.
+- The buttons are live on the most recent message only. A replayed thread shows
+  the question and options as text.

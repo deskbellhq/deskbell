@@ -1,0 +1,26 @@
+{
+  "name": "@deskbell/evals",
+  "version": "0.0.1",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@deskbell/core": "workspace:*",
+    "@deskbell/db": "workspace:*",
+    "@deskbell/shared": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

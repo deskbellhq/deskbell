@@ -1,0 +1,15 @@
+{
+  "title": "Deploy",
+  "pages": [
+    "index",
+    "requirements",
+    "docker-compose",
+    "environment-variables",
+    "models",
+    "vector-store",
+    "production-checklist",
+    "upgrading",
+    "commands",
+    "troubleshooting"
+  ]
+}

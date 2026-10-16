@@ -1,0 +1,260 @@
+---
+title: Environment variables
+description: Every environment variable Deskbell reads, what it defaults to, and which ones change whether visitors get an answer at all.
+updated: 2026-09-22
+---
+
+Deskbell is configured entirely through environment variables. `.env.example` in
+the repository is the annotated original; this page is the same set organised by
+what each one affects.
+
+Every variable below has a working default except `DATABASE_URL` and the
+provider credentials.
+
+## Core
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DATABASE_URL` | `postgres://deskbell:deskbell@localhost:5432/deskbell` | Postgres connection string. The only required infrastructure |
+| `BETTER_AUTH_SECRET` | `change-me` | Signs dashboard session cookies. Required in production: compose refuses to start without it. Generate with `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | Externally visible origin. Also the base of the invitation links the Members page renders |
+| `GOOGLE_CLIENT_ID` | unset | With `GOOGLE_CLIENT_SECRET`, adds "Continue with Google" to the sign-in and sign-up pages. Register the redirect URI `<BETTER_AUTH_URL>/api/auth/callback/google` with Google. See [Authentication](/manage/authentication) |
+| `GOOGLE_CLIENT_SECRET` | unset | The OAuth client secret that goes with `GOOGLE_CLIENT_ID`; one without the other is logged and ignored |
+| `DESKBELL_PUBLIC_URL` | Derived from request headers | External origin used when rendering embed snippets. Set it when a proxy strips `x-forwarded-*` |
+
+## Outbound email
+
+Optional. Powers self-serve password reset and invitation emails on the
+dashboard. Both variables
+are required together; with them unset, development prints reset links to the
+server console and production disables the forgot-password flow (the page
+says so). Any SMTP provider or local catcher works; for Postmark, the
+Server API token is both username and password:
+`smtp://TOKEN:TOKEN@smtp.postmarkapp.com:587`.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SMTP_URL` | none | `smtp://` or `smtps://` URL, credentials included |
+| `EMAIL_FROM` | none | Sender of outbound mail. Must be one your provider accepts, e.g. `Deskbell <deskbell@your-domain.com>` |
+
+## Models
+
+Model ids are `provider/model`. See [Models and providers](/deploy/models)
+for what each provider supports.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `OPENAI_API_KEY` | none | Credentials for `openai/*` |
+| `ANTHROPIC_API_KEY` | none | Credentials for `anthropic/*`, chat only |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | none | Credentials for `google/*` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Endpoint for `ollama/*`, and for anything else speaking the OpenAI-compatible protocol |
+| `DESKBELL_CHAT_MODEL` | `openai/gpt-5-mini` | Writes answers |
+| `DESKBELL_REASONING_EFFORT` | `low` | How hard a reasoning model may think on the answer path: `minimal`, `low`, `medium`, `high`, or `provider` to leave it to the provider. `openai/*` only |
+| `DESKBELL_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embeds chunks and questions |
+| `DESKBELL_PLANNER_MODEL` | The chat model | Rewrites follow-up questions before retrieval |
+| `DESKBELL_RERANK_MODEL` | The chat model | Reorders retrieved candidates when `DESKBELL_RERANK=llm` |
+| `DESKBELL_JUDGE_MODEL` | The chat model | Grades answers when the eval harness runs with an LLM judge |
+| `DESKBELL_GAP_ANALYST_MODEL` | The chat model | Writes the finding and recommendation for a gap cluster on the Gaps page |
+| `DESKBELL_GAP_ANALYST_TIMEOUT_MS` | `30000` | Past it an analysis fails and the cluster records the error |
+
+`DESKBELL_PLANNER_MODEL` and `DESKBELL_JUDGE_MODEL` exist as separate settings
+so that changing the model which writes answers cannot quietly change how
+questions are resolved or how answers are graded. A cheap fast model is the
+right choice for the planner. For the judge, use a different model from the one
+under test: grading a model's answers with that same model is self-assessment,
+and the harness labels it as such in the report when you do.
+
+## Ingestion
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_CHUNK_TARGET_CHARS` | `2800` | Characters a chunk aims for when pages are cut before embedding |
+| `DESKBELL_CHUNK_MAX_CHARS` | `3600` | Hard cap; a single block longer than this is split at a sentence |
+| `DESKBELL_CHUNK_OVERLAP_CHARS` | `350` | Tail of the previous chunk carried into the next, so a fact straddling a boundary is in one of them |
+
+Chunk size changes what every embedding is computed from. Stored chunks keep the
+size they were cut at, so after changing it re-sync your sources; to re-embed an
+existing corpus after changing the embedding model instead, run
+`pnpm exec tsx scripts/reindex-project.ts --project <id>` against the deployment's
+database, or use *Reindex* on the Sources page.
+
+## Retrieval and planning
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_QUERY_PLANNING` | `followups` | `followups`, `always`, or `off` |
+| `DESKBELL_RETRIEVAL_MIN_SCORE` | `0` (off) | Cosine-similarity floor, from 0 up to but not including 1 |
+| `DESKBELL_RETRIEVAL_MODE` | `vector` | `hybrid` adds a full-text leg beside the vector leg and fuses the two |
+| `DESKBELL_RETRIEVAL_MULTI_QUERY` | `off` | `on` also searches the planner's variant phrasings and pools the candidates |
+| `DESKBELL_RETRIEVAL_LEG_DEPTH` | `50` | Candidates each leg contributes before results fuse |
+| `DESKBELL_RETRIEVAL_EF_SEARCH` | `100` | How many candidates the vector index examines per query (pgvector `hnsw.ef_search`); deeper is more exact and slightly slower |
+| `DESKBELL_RETRIEVAL_POOL` | `24` | Pooled candidates handed to final ordering (and the reranker) |
+| `DESKBELL_RETRIEVAL_MAX_PER_DOC` | `1` | Max chunks from one document in the final selection; `0` turns the cap off |
+| `DESKBELL_RETRIEVAL_ORDER` | `fused` | Final ordering with no reranker: `fused` or `cosine` |
+| `DESKBELL_RERANK` | `off` | `llm` (one structured chat-model call) or `local` (an in-process cross-encoder) reorders the pooled candidates |
+| `DESKBELL_RERANK_TIMEOUT_MS` | `10000` | `llm` only: past it the answer proceeds in fusion order |
+| `DESKBELL_VECTOR_STORE` | `pgvector` | `weaviate` moves the search index to a Weaviate cluster you run; see [Vector store](/deploy/vector-store) |
+| `DESKBELL_CLARIFY` | `off` | `on` lets the engine ask which reading the visitor meant when the retrieved pages answer the question in more than one way |
+| `DESKBELL_VERIFY` | `on` | Asks the model to bold the names it asserts and checks each against the retrieved pages and the whole index once the answer has streamed; a name found nowhere is spoken as a caveat under the answer and flagged on the Gaps page. `off` restores the shorter prompt |
+
+`always` expands first questions as well as follow-ups, which improves retrieval
+at the cost of one extra model call on every question. `off` searches the
+message exactly as typed.
+
+With `DESKBELL_CLARIFY=on`, a question the retrieved pages answer in more than
+one way — "how do I configure it?" when three pages each configure something
+different — comes back as one question with the pages as options, instead of
+an answer for whichever reading the model picked. The options are always
+titles of pages that were retrieved; the engine drops anything else, and asks
+at most once per conversation. It costs accuracy on questions that had one
+obvious reading, so measure it before turning it on for visitors:
+[Clarifying questions](/knowledge/clarifying-questions) says how, and
+[How it works](/how-it-works#clarify) has the mechanics.
+
+With `DESKBELL_VERIFY` on, the instruction the model reads carries a paragraph
+asking it to write the exact name of any feature, setting, button or page it
+asserts in bold, and after the answer has streamed each such name is looked up
+in the retrieved pages, then in the whole index. A name found nowhere makes the
+answer end with a sentence saying so, marks the message, and lands on the Gaps
+page as its own kind. It ships on because it measured better: answers were more
+often correct and less often refused, at the cost of longer answers and one
+database query each. `off` restores the shorter prompt and records every answer
+as unchecked; [Answer verification](/knowledge/answer-verification) has the
+numbers and what to measure on your own corpus.
+
+The shipped defaults preserve plain vector search. Everything below the floor
+in that table changes **ranking**, and the sizing knobs are a **latency
+budget**, not a quality dial: turning them up buys latency and tokens first,
+and quality only if a measurement says so. Hybrid mode exists because exact
+tokens (error codes, config keys, identifiers) can match literally where
+embeddings miss them; the per-document cap exists because one long page can
+otherwise crowd out a short page that answers the question outright. Reranking
+never runs as a separate service and degrades to fusion order on any failure
+or timeout. Two drivers exist. `llm` asks the configured chat model for an
+ordering: zero extra dependencies, but seconds of latency and tokens on every
+answer. `local` runs a real cross-encoder in-process on CPU in the web app,
+tens of milliseconds per candidate and no tokens. The Docker images and
+`pnpm install` include the library it needs (`@huggingface/transformers`); a
+production install that prunes development dependencies adds it with
+`pnpm add @huggingface/transformers`. On first use the model weights (~25 MB
+for the default `Xenova/ms-marco-MiniLM-L-6-v2`) download from the Hugging
+Face hub into `node_modules/@huggingface/transformers/.cache/`. In a container
+that directory lives in the writable layer, so it survives restarts but not a
+rebuilt image; mount it or pre-seed it for air-gapped deployments. If the
+library is missing the driver fails loudly per answer and the engine keeps
+fusion order. Flip any of these against [eval numbers](/operate/evaluation); the
+harness sweeps them with `pnpm sweep`.
+
+<Callout type="warn">
+`DESKBELL_RETRIEVAL_MIN_SCORE` is not a quality dial. It decides whether the
+visitor gets an answer at all: if no chunk clears the floor, the question is
+refused before the model is consulted. Correct documents score lower than people
+expect, so raising it trades answers for silence. Tune it against
+[eval numbers](/operate/evaluation), not by feel. A malformed value is ignored with a
+warning rather than taking the deployment down.
+</Callout>
+
+## Conversations
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_THREAD_TITLES` | `first-message` | How a new conversation gets its title: the first question trimmed to eighty characters, or `model` for one short chat-model call per conversation, run by the worker and counted against the project's daily token budget |
+| `DESKBELL_NOTIFICATION_SUMMARY` | `model` | Whether a [notification](/operate/notifications) carries a one-sentence model summary of what went wrong (`model`, one short chat-model call per event, run by the worker and counted against the daily token budget) or falls back to the conversation title (`none`) |
+
+## Actions
+
+Servers and per-tool policies are set per project under **Settings ›
+Actions** ([Actions](/actions)). These bound what one turn may do.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DESKBELL_ACTION_MAX_STEPS` | `4` | Model steps per turn; each tool call is a step |
+| `DESKBELL_ACTION_TIMEOUT_MS` | `30000` | How long one tool call may take before it is reported as failed |
+| `DESKBELL_ACTION_RESULT_MAX_CHARS` | `8000` | How much of a tool result the model is shown; longer results are cut and marked |
+| `DESKBELL_ACTION_APPROVAL_TTL_MIN` | `10` | How long a confirmation card can be answered before it expires |
+
+Confirmation requests are signed with a key derived from `BETTER_AUTH_SECRET`;
+visitor identity tokens are signed with keys the instance generates on first
+use and publishes at `/api/v1/actions/jwks`.
+
+## Gaps
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_GAPS_WEAK_SCORE` | `0.35` | Top retrieval score under which an answered question counts as a weak answer on the Gaps page |
+| `DESKBELL_GAPS_CLUSTER_SIMILARITY` | `0.80` | Cosine similarity at which a new wording joins the cluster of the closest wording instead of starting one |
+| `DESKBELL_GAPS_AUTO_ANALYZE_AT` | `0` (off) | Occurrences in 30 days at which a cluster without an analysis is analysed without a click |
+
+A gap is a question the content could not answer. Two of the three signals come
+from the visitor: a refusal they saw, or a thumbs-down they gave. The third
+comes from the engine: an answer whose best retrieved passage scored under this
+floor. Those answers read fine and nobody complains, which is why they need a
+number. The default was chosen by measuring judged answers against their
+retrieval scores on the shipped embedding model, and it is a conservative
+floor: on that set it catches the clearest weak answers and flags about one
+correct answer in ten. A different embedding model moves the scale, so measure
+again before trusting the default with one. The floor changes only what the
+dashboard flags, never what visitors get.
+
+Gap questions are grouped by meaning. The worker embeds each new phrasing with
+the configured embedding model and joins it to the closest existing cluster
+when the similarity reaches the threshold, otherwise it starts a cluster. Both
+values are properties of the embedding model, so after changing the model or
+the threshold use the Re-cluster action on the Gaps page, which rebuilds
+every cluster in the project from the questions. An exact repeat of an earlier
+question never needs an embedding call, and if the embedding provider is
+unavailable the question still lands in a cluster by its text; the hourly
+catch-up job fills in what was missed.
+
+An analysis asks the chat model what a cluster of questions is missing from
+the content and what to write, and suggests marking criteria for the eval
+case. It runs in the worker, counts against the project's daily token budget,
+and is skipped when nothing about the cluster changed since the last run.
+Editors trigger it per cluster or for every open cluster without one, twenty
+per click. The automatic rule is off by default because it spends tokens on
+its own: set a threshold and clusters that reach that many occurrences in 30
+days are analysed once, without a click.
+
+## Abuse protection
+
+The defaults are on and sensible. [Security](/manage/security) explains what each one
+guards against.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_ALLOW_ANY_ORIGIN` | `false` | Answer any origin even when the allowlist is empty |
+| `DESKBELL_ABUSE_PROTECTION_DISABLED` | `false` | Master off switch |
+| `DESKBELL_RATE_LIMIT_ASK_PER_MIN` | `10` | Answers per IP per minute |
+| `DESKBELL_RATE_LIMIT_ASK_PER_HOUR` | `100` | Answers per IP per hour |
+| `DESKBELL_RATE_LIMIT_PROJECT_PER_MIN` | `120` | Answers per project per minute |
+| `DESKBELL_RATE_LIMIT_READ_PER_MIN` | `60` | Cheap endpoints, per IP per minute |
+| `DESKBELL_MAX_CONCURRENT_ASKS` | `2` | Simultaneous streams per IP, per instance |
+| `DESKBELL_TRUSTED_PROXIES` | `0` | How many reverse proxies sit in front of this deployment |
+| `DESKBELL_IP_SALT` | `BETTER_AUTH_SECRET` | HMAC key for IP hashes. Raw addresses are never stored |
+
+An empty allowlist behaves differently by environment: development answers any
+origin so the demo works, production refuses. `DESKBELL_ALLOW_ANY_ORIGIN` is the
+documented way out, for the case where you embed on many domains you cannot
+enumerate.
+
+<Callout type="warn">
+`DESKBELL_TRUSTED_PROXIES` is the setting people get wrong. It counts your own
+proxy hops, and `x-forwarded-for` is read right to left so a client cannot claim
+an identity. Set it too low and every visitor behind your proxy shares one
+rate-limit bucket. Set it too high and each visitor can pick their own by
+forging a header. For a direct run it is `0`.
+</Callout>
+
+Per-project spending is configured in the dashboard rather than here. Rate
+limits protect the deployment, so an operator sets them from outside; the daily
+token budget belongs to a project, so it lives on the Install page next to the
+number of tokens that project has used today.
+
+## Enterprise Edition
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DESKBELL_EE_LICENSE_KEY` | none | Unlocks the features listed in `packages/ee/FEATURES` |
+
+Everything not in that manifest is open source, including the whole answering
+path. See [Licensing](/developer/licensing) for the licence map.

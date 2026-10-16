@@ -1,0 +1,61 @@
+---
+title: The widget
+sidebarTitle: Overview
+description: What the Deskbell widget is, the four ways to put it on a page, what can be configured from where, and the pages in this section that cover each part.
+updated: 2026-09-21
+---
+
+The widget is the part of Deskbell your visitors see: a launcher, a panel that
+streams answers with their sources, thumbs for feedback, and the visitor's
+previous conversations. It is a custom element, `<deskbell-widget>`, rendered
+in a shadow root, so your page's CSS stays out of it and its CSS stays out of
+your page.
+
+![The widget open on a documentation page, answering a question with the pages it used listed underneath](/images/widget.png)
+
+## Four ways to add it
+
+| Way | For | Page |
+|---|---|---|
+| One script tag with `data-project-key` | Any site. Mounts itself, finds your server from its own URL | [Install](/widget/install) |
+| The element, placed by you | Control over where it sits in the DOM, or inline in the page | [Install](/widget/install#placing-the-element-yourself) |
+| `@deskbell/widget` from npm | Applications that bundle their own JavaScript | [Install](/widget/install#installing-from-npm) |
+| `@deskbell/widget-react` | React codebases; a wrapper around the same element | [Install](/widget/install#react) |
+
+A UI of your own, on the same server and the same rules, is the
+[SDK](/developer/sdk).
+
+## What is configured where
+
+| Layer | Set by | Reaches |
+|---|---|---|
+| Dashboard | **Settings › Appearance**, no redeploy | Every page the widget is on |
+| Attributes | The embed code, per page | That page |
+| JavaScript | `deskbell("config", …)` at runtime | That page, until reload |
+| CSS | `--deskbell-*` tokens and `::part()` rules on the host page | Wins over all of the above |
+| Slots | Your own markup for the launcher, header, empty state or footer | Replaces the region |
+
+[Options](/widget/configuration) lists every option and the precedence order;
+[Theming](/widget/configuration/theming) the tokens, parts and slots;
+[Behaviour](/widget/configuration/behaviour) what each mode and content feature
+does; [JavaScript API](/widget/javascript-api) the commands and events.
+
+## What it does on the page
+
+- Asks `POST /api/v1/ask` and renders the streamed answer as Markdown, built
+  as elements rather than inserted as HTML.
+- Shows the sources under each answer as pills that link to the page, or
+  labelled as written answers.
+- Keeps the visitor's session id in `localStorage` so their threads are there
+  on the next visit; with [Visitor identity](/widget/identity) configured,
+  threads follow the signed-in visitor across browsers.
+- Dispatches a `deskbell:*` event for everything that happens, so a tag manager
+  can read them from `window`.
+- Sends one beacon per tab session when it mounts, which is how the Install
+  page knows where the widget is live.
+
+## Size and dependencies
+
+`deskbell.js` is built on Preact with nothing third-party beyond it, and the
+build fails above 40 KB gzipped. The npm package is an ES module with `preact`
+as its one dependency.

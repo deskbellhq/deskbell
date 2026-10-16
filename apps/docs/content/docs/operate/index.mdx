@@ -1,0 +1,53 @@
+---
+title: Operate Deskbell
+sidebarTitle: Overview
+description: The dashboard surfaces you use once the widget is live, what the Overview page counts, how an answer comes to be called uncertain, and where each signal leads.
+updated: 2026-09-21
+---
+
+Once the widget is on your site, the dashboard is where you watch what visitors
+ask, what the answers were grounded on, and what your content is missing. The
+Overview page is the summary; the pages in this section are the detail.
+
+## Getting started, then the numbers
+
+A fresh project shows a three-step guide on the Overview page instead of
+metrics: add your docs, ask it something, put it on your site. The third step
+completes when the widget's install beacon arrives from a host that is not the
+dashboard's own. After that, or after you dismiss the guide, the page shows
+four cards, a chart and the latest conversations.
+
+| Card | Counts | Beside it |
+|---|---|---|
+| Conversations | Threads in this project | How many started in the last seven days |
+| Questions asked | Visitor messages | The last seven days |
+| Answer rate | Certain answers as a share of all answers | Open gaps over the last 30 days |
+| Positive feedback | Thumbs-up as a share of all votes | The number of votes |
+
+The chart is 90 days of answers, certain against uncertain, one column per day,
+using the rule below. Click a column to open the Conversations page narrowed to
+the threads that had a message that day. The list beneath it is the newest
+conversations with a preview of the first answer.
+
+## What uncertain means
+
+An answer is **uncertain** when the assistant refused, when it answered
+from a best match that scored under the weak floor
+(`DESKBELL_GAPS_WEAK_SCORE`, `0.35` by default), or when it named something
+your content does not contain
+([Answer verification](/knowledge/answer-verification)). One uncertain answer marks
+the whole thread, which is the same rule the Gaps page uses to decide what
+counts as a gap, so the inbox, the thread badge and the gaps list agree.
+
+Certain is a claim about grounding, not correctness: a confidently wrong answer
+reads as certain until a visitor marks it down.
+
+## Where each signal goes
+
+| You want to | Page |
+|---|---|
+| Read what a visitor asked and what was cited | [Conversations](/operate/conversations) |
+| See which questions your content cannot answer, grouped by meaning | [Gaps](/operate/gaps) |
+| Hear about a thumbs-down the moment it happens | [Notifications](/operate/notifications) |
+| Prove answer quality with numbers before and after a change | [Evaluation](/operate/evaluation) |
+| Answer a gap yourself | [Written answers](/knowledge/written-answers) |

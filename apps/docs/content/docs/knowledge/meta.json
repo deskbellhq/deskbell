@@ -1,0 +1,13 @@
+{
+  "title": "Knowledge",
+  "pages": [
+    "index",
+    "website",
+    "written-answers",
+    "clarifying-questions",
+    "answer-verification",
+    "hallucinations",
+    "re-indexing",
+    "faq"
+  ]
+}

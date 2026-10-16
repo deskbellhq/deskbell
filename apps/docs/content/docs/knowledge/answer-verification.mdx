@@ -1,0 +1,146 @@
+---
+title: Answer verification
+description: Every name an answer asserts is checked against your content once the answer has streamed, and a name found nowhere is spoken as a caveat, flagged on the Gaps page, and counted by the eval harness.
+updated: 2026-10-16
+---
+
+An assistant that answers only from your content can still decorate a correct
+answer with a name it made up: a rule box that does not exist, a setting the
+page never mentions, a button the product does not have. The answer reads
+well, the sources are real, nobody marks it down, and the invention is
+invisible. So every name an answer asserts is checked against your content
+after the answer has streamed, and a name found nowhere makes the answer say
+so. The check is on by default and instance-wide.
+
+## What it changes
+
+Two things. The instruction the model reads carries a paragraph asking it to
+write the exact name of any feature, setting, button, page or option it
+asserts in bold, as your documentation writes it, and never to bold a name it
+is saying does not exist; and each answer is followed by one query against
+your index.
+
+It ships on because it measured better. On a tuning set of one hundred
+questions against a real documentation corpus, run with the check off and then
+on, answers to answerable questions were correct more often (factuality 77.6%
+to 81.4%) and refused less often (false-refusal rate 10.1% to 6.3%), with
+groundedness and the refusal of unanswerable questions unchanged. The gain came
+from the paragraph: asked to name what it asserts, the model answered questions
+it used to decline. The cost is longer answers, about half again as many output
+tokens, and with them a slower answer: the median rose by about 0.7 s and the
+slowest twentieth by about 1.4 s on that run. The query itself is one indexed
+lookup and does not show in those figures.
+
+## Turning it off
+
+```bash title=".env"
+DESKBELL_VERIFY=off
+```
+
+Restart the web application. The instruction loses the paragraph, no lookup
+runs, and every answer is recorded as unchecked: the unsupported-name gap kind
+and the sentence under the answer never appear.
+
+<Callout type="warn">
+The check has false alarms of its own: a plural your pages write in the
+singular, a name inflected in a language that declines nouns, a code or
+standard your pages write as a range, a label the model bolded that was never
+meant as a name. Before trusting the sentence under an answer, read the names
+it flags on your corpus; [What to measure](#what-to-measure) says how. If the
+longer answers are not worth it to you, turn it off and measure that too.
+</Callout>
+
+## What is checked
+
+Bold spans and single-token code spans (identifiers, flags, environment
+variables). Code blocks are skipped, and so are labels such as "Note", links,
+paths, addresses and anything that reads as a sentence. A path written with
+arrows, "Settings → Billing", is checked whole and by part. At most twelve
+names per answer.
+
+A name is excluded before any lookup when the visitor typed it, in this message
+or an earlier one: a name the visitor supplied and the model echoed was not
+invented. Names on the project's ignored-terms list (Settings → Gaps, the same
+list the Gaps page strips from questions) are excluded too.
+
+Each remaining name is looked for in the pages retrieved for the question and
+in any tool results, then in the whole index: a phrase query over the same
+chunk rows retrieval reads, and a substring match on page titles, both scoped
+to the project. Matching is case- and accent-insensitive, treats hyphens and
+punctuation as spaces, and tries the plural and the singular. A name found by
+neither pass is unsupported.
+
+Your content is the only catalogue. Nothing product-specific lives in the
+instruction, so the check works the same for any corpus, and a page added
+tomorrow makes its names supported tomorrow.
+
+## What the visitor sees
+
+A sentence at the end of the answer, in the assistant's voice: "I couldn't
+find **Find and Replace** in the documentation, so that part may not be
+accurate." No icon, no label, no box. The `unsupportedNote` copy key sets the
+wording, with `{terms}` standing for the names
+([behaviour](/widget/configuration/behaviour#unverified-names)). The sentence
+is rendered from what the check found, never written into the answer, so the
+answer the model wrote and the verdict on it stay separate. A reopened thread
+shows it again, and when the visitor asks a follow-up the model is shown its
+earlier answer with the sentence attached, so it does not repeat an unverified
+name with fresh confidence.
+
+The check never rewrites or withholds an answer. The tokens are on the wire
+when it runs, and a second draft would mean holding the whole answer back.
+
+Building your own interface: the `verification` event carries the names over
+the [HTTP API](/developer/api) and the [SDK](/developer/sdk), after the
+citations and only when there are any. In the widget, `deskbell:answer`
+carries `unsupportedTerms` for the same answers
+([JavaScript API](/widget/javascript-api)).
+
+## Where it shows up
+
+An answer that named something your content lacks is an **unsupported name**
+gap, its own kind on the [Gaps](/operate/gaps) page beside refused, marked down
+and weak. The cluster's drawer lists the names and how often each was used,
+the CSV export and the task brief carry them, and the analysis is told which
+names the answers invented. On the Conversations page the message carries an
+**Unsupported name** badge with the names on hover, and the thread reads
+**Uncertain**, the same reading a refusal or a weak answer gives it.
+
+An answer that was checked and found clean is recorded as such, and an answer
+that was never checked, because the setting was off, the turn was a refusal or
+a clarification, or the lookup failed, is recorded as unchecked. The two are
+never collapsed: a missing check is not a clean one.
+
+## What to measure
+
+The [eval harness](/operate/evaluation) reports the **unsupported-name rate**:
+the share of checked answers that named something your content does not
+contain. Lower is better, and a rise fails the baseline check. A case may
+carry the turns before its question, so you can replay the moment a visitor
+pushes back on an answer and insists on something the content does not have,
+which is where an assistant is most tempted to invent. The built-in `pushback`
+set is four such cases.
+
+Run your own question set with the setting off, then on, on the same day, and
+compare factuality, false refusals, groundedness and latency beside the new
+rate. Then read the flagged names: the run prints each one to standard error.
+Sort them into truly absent, a plural or inflection your pages write
+differently, a paraphrase of the visitor's own wording, a label that was never
+a name, and a name the model bolded while denying it. The share that is truly
+absent is the precision of the check on your corpus, and it is what decides
+whether the sentence under an answer will be believed.
+
+## Limits
+
+- Only names the model marks are checked. A name written in plain prose is not
+  seen; the instruction paragraph is what makes marking reliable, and how
+  reliably the model follows it is one of the numbers to measure.
+- A real name used for the wrong job passes. The check sees what it is asked
+  to check; recommending an existing feature that does not do what the
+  visitor wants is a retrieval problem or a content gap, not an invented name.
+- No stemming. The index does not stem, so neither does the check; inflected
+  names in languages that decline nouns show up as false alarms.
+- An answer that resumes after a confirmed action retrieved no pages, so it is
+  checked against the index alone.
+- The setting is instance-wide; a deployment cannot turn it on for one project
+  and off for another.

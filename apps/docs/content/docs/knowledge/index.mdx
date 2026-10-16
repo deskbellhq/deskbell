@@ -1,0 +1,86 @@
+---
+title: Knowledge
+sidebarTitle: Overview
+description: What Deskbell answers from, the two kinds of source, the states a source moves through, and what happens to a page between the crawl and the first citation.
+updated: 2026-09-22
+---
+
+Deskbell answers from what you give it and nothing else. Its knowledge is a set
+of **sources** on the Sources page of the dashboard; every answer cites the
+pages it drew on, and a question that none of them cover is refused.
+
+![The Sources page: a crawled website with its page and chunk counts and a Sync button, and the written answers card](/images/dashboard-sources.png)
+
+## Two kinds of source
+
+| Source | Where it comes from | Cited as |
+|---|---|---|
+| [Website](/knowledge/website) | A documentation site, crawled from a start URL by the worker | The page, linked |
+| [Written answers](/knowledge/written-answers) | Question and answer pairs typed in the dashboard, usually from a gap | A written answer, labelled as one |
+
+A project holds any number of websites and one written-answers source, created
+the first time an answer is saved. Both are indexed the same way and compete on
+the same terms at retrieval; a written answer wins by matching the question
+better, not by rank.
+
+## What happens to a page
+
+1. **Fetch.** The crawler reads `robots.txt`, prefers the sitemap, falls back
+   to links, and identifies itself as `DeskbellBot`.
+2. **Extract.** The page is reduced to its main content: headings and
+   paragraphs, with navigation, headers and footers dropped.
+3. **Chunk.** Blocks are packed into chunks of about 2,800 characters with 350
+   characters of overlap, so an answer is not cut in half at a boundary. The
+   sizes are [environment variables](/deploy/environment-variables#ingestion).
+4. **Check.** Each chunk is tested against four injection heuristics. A match
+   is recorded and counted on the source row; the chunk still answers.
+5. **Embed.** Each chunk is embedded with the configured model and stored in
+   Postgres with its vector, its document, and the model version that produced
+   it.
+
+A written answer skips the first two steps: its text is the question as a
+heading followed by the answer, then chunked and embedded like a page.
+
+## Source states
+
+| State | Meaning |
+|---|---|
+| `pending` | Added, waiting for the worker to pick it up |
+| `syncing` | The worker is crawling, chunking or embedding it |
+| `ready` | Every chunk is stored and answerable. The row shows page and chunk counts and the last sync time |
+| `error` | The crawl failed. The worker log says why; **Sync** runs it again |
+
+Ingestion runs in the worker, so `docker compose logs -f worker` is where the
+detail is. A source that stays `pending` with no chunks is usually a model
+provider problem rather than a crawl problem, because embedding is the first
+step that calls the provider. [Troubleshooting](/deploy/troubleshooting#ingestion)
+lists the cases.
+
+## When a question has more than one reading
+
+Retrieval can come back with pages that answer the same question differently,
+because the visitor did not say which of several things they meant. The
+assistant can ask which one instead of answering for the one the model picked;
+[Clarifying questions](/knowledge/clarifying-questions) covers the setting,
+what it costs and what it says about your content.
+
+## When an answer names something the content lacks
+
+An answer can be correct and still carry a name the model made up: a setting
+the page never mentions, a button the product does not have. Every name an
+answer asserts is checked against your content once it has streamed, and a
+name found nowhere is said out loud under the answer and flagged as a gap;
+[Answer verification](/knowledge/answer-verification) covers the check.
+[Hallucinations](/knowledge/hallucinations) lays out that check beside the
+others that keep an answer inside your content, and what none of them catch.
+
+## Keeping it current
+
+**Sync** on a source row crawls again. Pages whose content hash is unchanged are
+skipped; changed and new pages are re-chunked and re-embedded. A written answer
+is re-indexed when it is edited.
+
+Changing the embedding model, or moving the index to another vector store,
+means every chunk has to be embedded again. The Sources page shows how many
+chunks are behind and a **Re-embed** button; [Re-indexing](/knowledge/re-indexing)
+describes the job.

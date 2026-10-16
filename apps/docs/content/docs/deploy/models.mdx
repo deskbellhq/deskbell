@@ -1,0 +1,168 @@
+---
+title: Models and providers
+description: Deskbell runs on OpenAI, Anthropic for chat, Google, or a fully local model through Ollama, plus anything speaking the OpenAI-compatible protocol.
+updated: 2026-09-21
+---
+
+Deskbell is model-agnostic by construction. Provider SDKs are imported in
+exactly one module, and everything else consumes an interface, so no part of the
+engine knows which provider is behind it.
+
+Model ids are `provider/model` strings:
+
+```bash
+DESKBELL_CHAT_MODEL=openai/gpt-5-mini
+DESKBELL_EMBEDDING_MODEL=openai/text-embedding-3-small
+```
+
+## Read this before you switch embedding models
+
+The embedding column is `vector(1536)`, fixed per deployment by the schema. Most
+local embedding models have a different dimension: `nomic-embed-text` produces
+768.
+
+A mismatch is refused, not half-applied. The re-index job embeds one probe
+string, compares its length to the column, and stops before writing anything if
+they disagree. The error names the migration you need. Nothing is corrupted and
+nothing is partially converted, but nothing is converted either until you change
+the column and re-embed every chunk.
+
+This is verified against a real second embedder rather than a synthetic
+mismatch: pointing `DESKBELL_EMBEDDING_MODEL` at `ollama/nomic-embed-text`
+triggers the refusal.
+
+Decide your embedding model before you index a large corpus. Changing it later
+means re-embedding everything, which costs whatever your provider charges for
+the whole corpus again.
+
+## What each provider supports
+
+| Provider | Chat | Embeddings | Credentials |
+|---|:---:|:---:|---|
+| `openai/*` | Yes | Yes | `OPENAI_API_KEY` |
+| `anthropic/*` | Yes | No | `ANTHROPIC_API_KEY` |
+| `google/*` | Yes | Yes | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| `ollama/*` | Yes | Yes | `OLLAMA_BASE_URL` |
+
+Anthropic has no embeddings API. Setting `DESKBELL_EMBEDDING_MODEL` to an
+`anthropic/*` id fails at construction with a message telling you to pair it
+with `openai/*`, `google/*` or `ollama/*`, rather than failing later on the
+first document you try to index. Anthropic for chat and something else for
+embeddings is a normal configuration.
+
+Google's embedding models (`google/gemini-embedding-001`) default to 3072
+dimensions. Deskbell requests 1536, the width of the vector column, and tells
+the model whether it is embedding a query or a document, which is how the
+provider documents them for retrieval. Two limits: Google's embeddings API
+reports no token usage, so embedding tokens count as zero against the daily
+token budget, and Google retires model ids faster than the others (a chat id
+that worked last quarter can return "no longer available to new users"); the
+error names the replacement.
+
+An unrecognised provider prefix fails the same way, naming the module where a
+new provider is added.
+
+<Callout>
+Anthropic and Ollama have produced a grounded answer against a real corpus:
+`anthropic/claude-haiku-4-5-20251001` returned an answer with one citation, and
+`ollama/llama3.2:1b` did the same with generation running entirely on local
+hardware and no hosted key. Both ran with embeddings on `openai/*`, because a
+question has to be embedded in the same space as the corpus it searches.
+Google has been checked one step short of that: `google/gemini-embedding-001`
+returned 1536-dimensional vectors for a query and a document, and
+`google/gemini-3.6-flash` answered from supplied context through the same
+generation path, but no corpus has been indexed and searched on it yet.
+</Callout>
+
+## Running fully local with Ollama
+
+Ollama speaks the OpenAI-compatible protocol, so Deskbell talks to it through
+the standard OpenAI-compatible provider against `$OLLAMA_BASE_URL/v1`. Point the
+variable at wherever Ollama listens; Deskbell appends `/v1` if it is missing.
+
+```bash
+DESKBELL_CHAT_MODEL=ollama/llama3.3
+DESKBELL_EMBEDDING_MODEL=ollama/nomic-embed-text
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+`nomic-embed-text` is 768-dimensional, so it needs the column migration
+described above before it will index anything.
+
+Ollama is a service you run, not something Deskbell manages. It is deliberately
+absent from `docker-compose.yml`, because Postgres is the only infrastructure
+dependency and adding a second one would break that.
+
+### Ollama from inside Compose
+
+The Compose file forwards `OLLAMA_BASE_URL` to `web` and `worker`, so setting
+it in `.env` is enough. What changes in a container is the address: `localhost`
+inside the container is the container, not your machine. For Ollama running on
+the Docker host, use `http://host.docker.internal:11434` on macOS and Windows,
+or add `extra_hosts: ["host.docker.internal:host-gateway"]` to both services on
+Linux and use the same address.
+
+## Anything else OpenAI-compatible
+
+vLLM, LM Studio and llama.cpp all serve the OpenAI-compatible protocol. Point
+`OLLAMA_BASE_URL` at one of them and use the `ollama/` prefix with whatever
+model name that server expects. The prefix selects the transport, not the
+software.
+
+## Which model does what
+
+Four settings name a model and all but the embedding one default to the chat
+model. `DESKBELL_CHAT_MODEL` writes answers. `DESKBELL_PLANNER_MODEL` rewrites
+follow-up questions before retrieval. `DESKBELL_RERANK_MODEL` reorders
+candidates when the LLM reranker is on. `DESKBELL_GAP_ANALYST_MODEL` reads a
+cluster of unanswered questions on the Gaps page and writes what the
+content is missing; it runs in the worker, so under docker compose the worker
+needs the credentials for whichever provider it names. `DESKBELL_JUDGE_MODEL`
+grades answers in the eval harness and should differ from the chat model.
+
+## Reasoning effort on the answer path
+
+A reasoning model left at its provider default thinks before it answers, and
+the visitor waits for all of it. Measured on the default chat model against a
+real corpus, with the same eight retrieved chunks and the same three
+answerable questions:
+
+| `DESKBELL_REASONING_EFFORT` | First visible token | Hidden reasoning tokens | Answered |
+|---|---|---|---|
+| `provider` (the model's own default) | 6.5 to 10.6 s | 320 to 576 | 3 of 3 |
+| `low` | 2.7 to 4.9 s | 128 to 192 | 3 of 3 |
+| `minimal` | 0.9 to 1.4 s | 0 | 1 of 3 |
+
+A grounded answer is written from context that is already in the prompt, so
+there is little to deliberate over, and the reasoning tokens are billed as
+output on top of the answer itself. But `minimal` goes too far for this model:
+it refuses questions the context does answer, and a false refusal costs more
+than the seconds it saves.
+
+Deskbell therefore defaults to `low` and applies it to everything a visitor
+waits on: the answer, the follow-up rewrite, and the LLM reranker when it is
+on. The eval judge and the gap analyst are left at the provider default,
+because nobody is waiting on them and their job is judgement.
+
+Set `provider` to send nothing and take whatever the provider decides. The
+setting exists for `openai/*` today; on other providers it is ignored, and the
+OpenAI provider ignores it with a warning on models that do not reason, so a
+non-reasoning chat model needs no change. If the remaining wait matters more
+than reasoning does, that is the lever: in the same probe a non-reasoning
+model answered all three questions with a first token in 0.8 to 1.7 seconds.
+
+## Injection resistance varies by model
+
+The system prompt tells the model that retrieved context is data and never
+instructions. How well that holds is a property of the model, not of Deskbell.
+
+Measured against the default chat model, two committed injection payloads were
+resisted, a third framed as site policy was resisted, and removing the
+injection-defence clause from the system prompt changed nothing: still resisted.
+That does not make the clause useless. It means the clause is not what protects
+that particular model from those particular payloads.
+
+A smaller local model has different exposure. The eval harness ships an
+injection dataset for exactly this reason, so you can measure your own model
+rather than trust a number measured on someone else's.
+[Evaluation](/operate/evaluation) covers running it.

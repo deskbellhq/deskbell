@@ -1,0 +1,140 @@
+# Deskbell self-host: `docker compose up` — Postgres is the ONLY infra
+# dependency (D11). Only the web UI is exposed; everything else binds to
+# localhost (langfuse pattern).
+services:
+  migrate:
+    build:
+      context: .
+      target: deps
+    command: ["sh", "-c", "pnpm --filter @deskbell/db migrate && pnpm --filter @deskbell/db seed"]
+    environment:
+      DATABASE_URL: postgres://deskbell:deskbell@db:5432/deskbell
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://deskbell:deskbell@db:5432/deskbell
+      # Signs dashboard session cookies — a guessable value means forgeable
+      # admin sessions, so compose refuses to start without it. Generate one:
+      # `openssl rand -base64 32` into .env (spec: dashboard-auth).
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env — generate with `openssl rand -base64 32`}
+      # Externally visible origin; also the base of invitation links.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Google sign-in (optional) — off until both are set.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Outbound email (optional) — password-reset links and invitation
+      # emails. Unset disables the forgot-password flow (the page says so);
+      # invitations fall back to copyable links (spec: password-reset-email).
+      SMTP_URL: ${SMTP_URL:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # Model providers: set the key for the provider your models name. Ollama
+      # runs on the host, so its default of localhost is wrong from inside a
+      # container; point OLLAMA_BASE_URL at host.docker.internal.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      DESKBELL_CHAT_MODEL: ${DESKBELL_CHAT_MODEL:-openai/gpt-5-mini}
+      DESKBELL_REASONING_EFFORT: ${DESKBELL_REASONING_EFFORT:-}
+      DESKBELL_EMBEDDING_MODEL: ${DESKBELL_EMBEDDING_MODEL:-openai/text-embedding-3-small}
+      DESKBELL_GAPS_WEAK_SCORE: ${DESKBELL_GAPS_WEAK_SCORE:-}
+      DESKBELL_GAPS_CLUSTER_SIMILARITY: ${DESKBELL_GAPS_CLUSTER_SIMILARITY:-}
+      DESKBELL_GAPS_AUTO_ANALYZE_AT: ${DESKBELL_GAPS_AUTO_ANALYZE_AT:-}
+      DESKBELL_THREAD_TITLES: ${DESKBELL_THREAD_TITLES:-}
+      # Retrieval, planning and reranking knobs (see deploy/environment-variables.mdx). Unset
+      # keeps the shipped defaults. The reranker runs IN this process — no
+      # service — and `local` downloads its weights on first use.
+      DESKBELL_QUERY_PLANNING: ${DESKBELL_QUERY_PLANNING:-}
+      DESKBELL_RETRIEVAL_MIN_SCORE: ${DESKBELL_RETRIEVAL_MIN_SCORE:-}
+      DESKBELL_RETRIEVAL_MODE: ${DESKBELL_RETRIEVAL_MODE:-}
+      DESKBELL_RETRIEVAL_MULTI_QUERY: ${DESKBELL_RETRIEVAL_MULTI_QUERY:-}
+      DESKBELL_RETRIEVAL_LEG_DEPTH: ${DESKBELL_RETRIEVAL_LEG_DEPTH:-}
+      DESKBELL_RETRIEVAL_EF_SEARCH: ${DESKBELL_RETRIEVAL_EF_SEARCH:-}
+      DESKBELL_RETRIEVAL_POOL: ${DESKBELL_RETRIEVAL_POOL:-}
+      DESKBELL_RETRIEVAL_MAX_PER_DOC: ${DESKBELL_RETRIEVAL_MAX_PER_DOC:-}
+      DESKBELL_RETRIEVAL_ORDER: ${DESKBELL_RETRIEVAL_ORDER:-}
+      DESKBELL_RERANK: ${DESKBELL_RERANK:-}
+      DESKBELL_RERANK_MODEL: ${DESKBELL_RERANK_MODEL:-}
+      DESKBELL_RERANK_TIMEOUT_MS: ${DESKBELL_RERANK_TIMEOUT_MS:-}
+      # Vector store (optional) — a Weaviate cluster you run; unset = pgvector.
+      DESKBELL_VECTOR_STORE: ${DESKBELL_VECTOR_STORE:-}
+      WEAVIATE_URL: ${WEAVIATE_URL:-}
+      WEAVIATE_GRPC_URL: ${WEAVIATE_GRPC_URL:-}
+      WEAVIATE_API_KEY: ${WEAVIATE_API_KEY:-}
+      WEAVIATE_COLLECTION: ${WEAVIATE_COLLECTION:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      DATABASE_URL: postgres://deskbell:deskbell@db:5432/deskbell
+      # Model providers: set the key for the provider your models name. Ollama
+      # runs on the host, so its default of localhost is wrong from inside a
+      # container; point OLLAMA_BASE_URL at host.docker.internal.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      DESKBELL_CHAT_MODEL: ${DESKBELL_CHAT_MODEL:-openai/gpt-5-mini}
+      DESKBELL_REASONING_EFFORT: ${DESKBELL_REASONING_EFFORT:-}
+      DESKBELL_EMBEDDING_MODEL: ${DESKBELL_EMBEDDING_MODEL:-openai/text-embedding-3-small}
+      DESKBELL_GAPS_WEAK_SCORE: ${DESKBELL_GAPS_WEAK_SCORE:-}
+      DESKBELL_GAPS_CLUSTER_SIMILARITY: ${DESKBELL_GAPS_CLUSTER_SIMILARITY:-}
+      DESKBELL_GAPS_AUTO_ANALYZE_AT: ${DESKBELL_GAPS_AUTO_ANALYZE_AT:-}
+      DESKBELL_THREAD_TITLES: ${DESKBELL_THREAD_TITLES:-}
+      DESKBELL_NOTIFICATION_SUMMARY: ${DESKBELL_NOTIFICATION_SUMMARY:-}
+      DESKBELL_ACTION_MAX_STEPS: ${DESKBELL_ACTION_MAX_STEPS:-}
+      DESKBELL_ACTION_TIMEOUT_MS: ${DESKBELL_ACTION_TIMEOUT_MS:-}
+      DESKBELL_ACTION_RESULT_MAX_CHARS: ${DESKBELL_ACTION_RESULT_MAX_CHARS:-}
+      DESKBELL_ACTION_APPROVAL_TTL_MIN: ${DESKBELL_ACTION_APPROVAL_TTL_MIN:-}
+      DESKBELL_GAP_ANALYST_MODEL: ${DESKBELL_GAP_ANALYST_MODEL:-}
+      DESKBELL_GAP_ANALYST_TIMEOUT_MS: ${DESKBELL_GAP_ANALYST_TIMEOUT_MS:-}
+      DESKBELL_VECTOR_STORE: ${DESKBELL_VECTOR_STORE:-}
+      WEAVIATE_URL: ${WEAVIATE_URL:-}
+      WEAVIATE_GRPC_URL: ${WEAVIATE_GRPC_URL:-}
+      WEAVIATE_API_KEY: ${WEAVIATE_API_KEY:-}
+      WEAVIATE_COLLECTION: ${WEAVIATE_COLLECTION:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: deskbell
+      POSTGRES_PASSWORD: deskbell
+      POSTGRES_DB: deskbell
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - deskbell-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deskbell"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  deskbell-pgdata:

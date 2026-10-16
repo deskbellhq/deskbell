@@ -1,0 +1,12 @@
+# Deskbell Enterprise Edition — feature manifest
+# Everything listed here lives under packages/ee and requires a subscription
+# in production (see packages/ee/LICENSE). Everything NOT listed here is and
+# stays open source — the AI answering/resolution core is never EE (D3).
+
+- Multi-organization management (agencies: one instance, many clients)
+- White-label rights (remove Deskbell branding from the widget)
+- SSO: SAML 2.0 / OIDC (via better-auth SSO plugin)
+- SCIM provisioning
+- Custom roles & per-feature permissions
+- Audit log (EU AI Act Art. 12-grade event logging)
+- Advanced retention/redaction policies

@@ -1,0 +1,57 @@
+---
+title: Confirmation
+description: A tool set to needs-confirmation pauses the turn until the visitor confirms a card in the widget; the request is signed, expires after ten minutes and is recorded either way.
+updated: 2026-09-22
+---
+
+When the model calls a tool whose policy is **Needs confirmation**, nothing
+runs. The turn stops, the widget shows a card, and the answer continues only
+with the visitor's decision.
+
+## The card
+
+The card names the tool the way the operator labelled it (see
+[Shown to visitors](/actions/mcp-servers#shown-to-visitors)), lists the
+call's arguments one per line — *Order ID: 42*, not `id: 42` — and offers
+*Cancel* and *Confirm*. An argument is named by its `title` in the tool's
+input schema when there is one, else by its key written out in words. The
+list is rendered from what the server will receive and stored with the call,
+so what the visitor confirms is what runs and what the audit row shows.
+
+Once answered, the card becomes a step line on the same message: a check and
+*Confirmed*, or *Cancelled*; a request nobody answered in time reads
+*Expired*.
+
+A request expires after ten minutes (`DESKBELL_ACTION_APPROVAL_TTL_MIN`). An
+expired card has no buttons, and the server refuses a late answer.
+
+## What happens on each answer
+
+- **Confirm**: the call runs with the arguments the card showed, the result
+  is handed to the model, and the answer streams into a new bubble.
+- **Cancel**: the model is told the call was not approved and answers
+  without it. It is instructed not to try again in that turn.
+
+Both outcomes are rows in the audit table, with the time of the decision.
+
+## How it works underneath
+
+The confirmation request is signed by the server with a key derived from
+`BETTER_AUTH_SECRET`. The visitor's answer is a second call to the same
+[ask endpoint](/developer/api#ask), carrying the conversation, the call id
+and the decision. The server checks that the conversation belongs to the
+caller, that the call is still pending there, and that the signature matches
+the call and its arguments before anything runs. A forged, altered or replayed
+approval is refused.
+
+The answer to a confirmation passes every check a question does — origin,
+rate limits, the daily token budget, the concurrent-stream cap and visitor
+identity — because it spends tokens and runs a tool on someone's authority.
+
+## Limits
+
+- One pending confirmation per turn.
+- Retrieval does not run again on the resumed turn; the continuation cites
+  tool results only.
+- The widget answers a card only while it is open on the same conversation;
+  a card replayed from history after a reload still works until it expires.

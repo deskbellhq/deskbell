@@ -1,0 +1,51 @@
+---
+title: Requirements
+description: Deskbell needs Docker and a model provider. Postgres 17 with pgvector is the only infrastructure dependency, and Compose starts it for you.
+updated: 2026-08-25
+---
+
+Deskbell needs Docker and access to a model. Postgres is the only piece of
+infrastructure it depends on, and the Compose file starts it for you.
+
+That constraint is enforced rather than aspirational: adding a service to
+`docker-compose.yml` requires a decision file in the repository. There is no
+Redis, no queue broker, no separate vector database and no object store. Job
+queueing runs on Postgres through pg-boss, and vector search runs on pgvector.
+
+## Running with Compose
+
+| Requirement | Version | Notes |
+|---|---|---|
+| Docker | With Compose v2 | `docker compose up` |
+| Model provider | An OpenAI API key, or a local model | See [Models and providers](/deploy/models) |
+| Disk | A few GB | Images plus the Postgres volume |
+
+Everything else is inside the images.
+
+## Running from source
+
+For development, or if you would rather run Node directly:
+
+| Requirement | Version |
+|---|---|
+| Node | 22 or later |
+| pnpm | 10 or later (`corepack enable pnpm`) |
+| Postgres | 17 with the `pgvector` extension |
+| Docker | For the Postgres container, unless you supply your own |
+
+`pnpm dx` starts Postgres in Docker, runs migrations, seeds a development
+project, and starts both dev servers.
+
+## About Postgres
+
+The Compose file pins `pgvector/pgvector:pg17`. A plain Postgres image will not
+work, because the schema declares a `vector` column and creates an HNSW index.
+
+If you point Deskbell at a Postgres you already run, it needs the `pgvector`
+extension available and version 17 or later. Managed providers vary in whether
+pgvector is offered and at which versions, so check before planning around it.
+
+Embeddings are stored as `vector(1536)`. That dimension is fixed per deployment
+and comes from the schema, not from configuration, so switching to an embedding
+model of a different size needs a migration first.
+[Models and providers](/deploy/models) covers what that involves.

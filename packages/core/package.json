@@ -1,0 +1,44 @@
+{
+  "name": "@deskbell/core",
+  "version": "0.0.1",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./models": "./src/models/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.42",
+    "@ai-sdk/google": "4.0.57",
+    "@ai-sdk/mcp": "^2.0.55",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/openai-compatible": "^3.0.37",
+    "@deskbell/db": "workspace:*",
+    "@deskbell/shared": "workspace:*",
+    "ai": "^7.0.0",
+    "drizzle-orm": "^0.45.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "peerDependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "weaviate-client": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@huggingface/transformers": {
+      "optional": true
+    },
+    "weaviate-client": {
+      "optional": true
+    }
+  }
+}

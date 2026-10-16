@@ -1,0 +1,128 @@
+---
+title: Production checklist
+description: What to change before a Deskbell instance faces the internet, starting with claiming the owner account before anyone else can.
+updated: 2026-09-21
+---
+
+<Callout type="warn">
+**Complete the first signup before anyone else can.** A fresh instance has no
+users, and the first account created at `/register` becomes the instance's
+**owner**. Expose the instance and claim that seat in the same sitting: an
+internet-reachable instance with zero users is an owner seat waiting for
+whoever finds it first. After that, sign-up closes and people join only by
+invitation. [Security](/manage/authentication) describes the model.
+</Callout>
+
+## First account and members
+
+- [ ] Sign up at `/register` immediately after first boot. That account is the
+      owner.
+- [ ] Invite everyone else from the Members page with the smallest role that
+      works, `viewer` for read-only access. With outbound email configured,
+      invitations are emailed to the invitee; the Members page always keeps a
+      copyable link you can hand over yourself.
+- [ ] Set `BETTER_AUTH_URL` to the externally visible URL. Invitation and
+      password-reset links are built from it.
+- [ ] Optional: enable Google sign-in with `GOOGLE_CLIENT_ID` and
+      `GOOGLE_CLIENT_SECRET`, registering `<BETTER_AUTH_URL>/api/auth/callback/google`
+      as the redirect URI. If you list sign-in domains on the Members page,
+      do it before announcing the instance: anyone at a listed domain can
+      join as a viewer from then on.
+- [ ] Configure outbound email (`SMTP_URL` + `EMAIL_FROM`) so password reset
+      works, any SMTP provider; see
+      [Configuration](/deploy/environment-variables#outbound-email) for the
+      shape. Without it, the forgot-password flow is disabled and the page
+      says so.
+- [ ] Know the recovery path before you need it. With outbound email set,
+      **Forgot password?** on the sign-in page is the recovery path. Without
+      it, or if the reset email cannot reach you: another signed-in admin
+      cannot reset your password for you, but can re-invite a replacement
+      account. If the only owner is locked out, reset the auth state
+      from the database. This deletes every account and session but touches
+      no content (sources, conversations, settings all survive), and the
+      instance returns to first-run so you sign up as owner again:
+
+      ```bash
+      docker compose exec db psql -U deskbell -c \
+        'DELETE FROM invitations; DELETE FROM members; DELETE FROM sessions; DELETE FROM accounts; DELETE FROM users;'
+      ```
+
+## Secrets
+
+- [ ] Set `BETTER_AUTH_SECRET` to a random value (`openssl rand -base64 32`).
+      Compose refuses to start the web service without one, since it signs every
+      dashboard session, so the placeholder means forgeable admin sessions.
+- [ ] Set `DESKBELL_IP_SALT` if you want IP hashing keyed separately from the
+      auth secret. It defaults to `BETTER_AUTH_SECRET`, which is fine, but the
+      two rotate on different schedules.
+- [ ] Change the Postgres credentials. The Compose file ships
+      `deskbell:deskbell`.
+- [ ] Keep model provider keys out of the image. Pass them as environment
+      variables at runtime.
+
+## Origins and spend
+
+- [ ] Add every site that embeds the widget to the project's allowlist on the
+      Install page, with the exact scheme and port.
+- [ ] Leave `DESKBELL_ALLOW_ANY_ORIGIN` at `false`. With it unset and the
+      allowlist empty, a production instance refuses to answer, which is the
+      behaviour you want if you forget the previous step.
+- [ ] Set a daily token budget on each project. `0` means unlimited, which means
+      an unbounded bill.
+- [ ] Review the rate limits for your traffic. The defaults allow 10 answers per
+      IP per minute and 100 per hour.
+
+## Behind a proxy
+
+- [ ] Set `DESKBELL_TRUSTED_PROXIES` to the number of your own proxy hops. `0`
+      for a direct run, `1` behind one reverse proxy. Too low and every visitor
+      shares one rate-limit bucket, so a single visitor can throttle your whole
+      site. Too high and visitors can forge their way into fresh buckets. If you
+      are unsure, log `x-forwarded-for` once and count the entries.
+- [ ] Set `DESKBELL_PUBLIC_URL` if your proxy strips `x-forwarded-*`. Without it
+      the embed snippet on the Install page can render the wrong host.
+- [ ] Terminate TLS at the proxy. Deskbell serves plain HTTP.
+- [ ] Let answers stream through. `/api/v1/ask` is a server-sent event stream:
+      it sends `X-Accel-Buffering: no`, which nginx honours, and a comment
+      line every 15 seconds of silence so an idle-timeout at the proxy never
+      cuts a slow answer. If your proxy buffers responses by default, turn
+      that off for this path.
+- [ ] Point health checks at `/api/health`.
+
+## Database
+
+- [ ] Back up the Postgres volume. Everything is in there: documents, chunks,
+      vectors, conversations and feedback. Re-crawling can rebuild the content,
+      but conversation history is gone if you lose it.
+- [ ] Confirm `pgvector` is available if you replaced the bundled Postgres with
+      your own.
+- [ ] Remove the seeded development project once you have a real one. The
+      Compose file seeds it on first run to make the first five minutes work.
+
+## Content
+
+- [ ] Check the flagged-chunk count on each source. Chunks matching
+      injection-shaped patterns are flagged and still answer, so a flag is
+      something to look at rather than something handled.
+- [ ] Run the eval harness against your own corpus and keep the baseline. It is
+      the only way to tell later whether a model or setting change helped.
+      [Evaluation](/operate/evaluation) covers it.
+- [ ] Run the injection dataset against your chosen model, particularly if it is
+      a small local one. Resistance is a property of the model, not of Deskbell.
+
+## Limits
+
+These are documented behaviours rather than bugs, and each has a reason:
+
+- Rate-limit windows are fixed, so a caller can burst up to twice a limit across
+  a window boundary.
+- The token budget is read before an answer and written after it, so it can
+  overshoot by one answer.
+- The concurrency cap counts per instance, because a stream is held open by one
+  process. Across replicas the per-IP rate limit is what holds.
+- `/api/v1/ask` requires an `Origin` header, so it is called from browsers;
+  a server holds no credential of its own for the widget endpoints.
+- Per-IP limits do not stop distributed abuse. The per-project rate limit and
+  the daily token budget are what cap your bill.
+
+[Security](/manage/security) explains the reasoning behind each guard.

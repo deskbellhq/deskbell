@@ -1,0 +1,142 @@
+---
+title: Visitor identity
+description: Name an OpenID issuer on a project and the widget endpoints verify signed bearer tokens from it, so a signed-in visitor's conversations follow them across browsers.
+updated: 2026-09-17
+---
+
+By default a visitor is a random session id stored in their browser, and their
+conversation history lives with that browser. When the widget runs inside a
+product where the visitor is signed in, the page can hand it a token from your
+identity provider. The server verifies the token and the visitor's
+conversations follow them to any browser they sign in on.
+
+## Configuring a project
+
+Open Settings, Visitor identity, and enter the issuer exactly as it appears in the
+`iss` claim of your tokens. Discover reads the issuer's OpenID configuration
+from the server and fills in the key-set URL. For an install that cannot reach
+the issuer, paste the key set (a JWKS document) instead; an inline key set is
+used in preference to the URL.
+
+| Setting | Meaning |
+|---|---|
+| Issuer | Tokens must carry this `iss`. Empty means anonymous sessions only |
+| Key set URL | Where the issuer publishes its signing keys. Fetched on demand and cached; a rotated key is picked up without a restart |
+| Inline key set | A JWKS document used instead of the URL |
+| Audience | Optional. Tokens must carry it in `aud` |
+| Require sign-in | Refuse requests that carry no valid token |
+| Staff claim | Optional. A claim path and value that marks support staff. Holders may open any conversation of the project read-only; see below |
+
+Changing identity settings takes effect on the next request. Only admins can
+change them.
+
+## What the page sends
+
+Give the SDK client, or the widget, a function that returns the visitor's
+current token. It is called before every request and sent as
+`Authorization: Bearer`.
+
+```ts
+const client = new DeskbellClient({
+  baseUrl: "https://your-deskbell.example.com",
+  projectKey: "pk_live_...",
+  sessionId: () => getOrCreateVisitorId(),
+  getAuthToken: () => auth.getAccessToken(),
+});
+```
+
+Return nothing for a visitor who is not signed in. With "Require sign-in" off,
+that visitor gets session-based history as before.
+
+The widget takes the same function as a property, `getAuthToken`, or through
+`deskbell("auth", fn)` before the bundle loads. On a 401 it retries once with
+a fresh token, then shows its `unauthorized` copy and dispatches
+`deskbell:unauthorized`. Its `context` attribute and `scope-key` map onto the
+context and scope below; see [Where a conversation starts](/widget/configuration/behaviour#where-a-conversation-starts).
+
+The token must be a signed JWT from the issuer. The server checks the
+signature against the key set, the issuer, the audience when one is
+configured, and the expiry with a thirty-second tolerance. It reads `sub` as
+the visitor's identity and `email` and `name` (or `preferred_username`) for
+display in the dashboard.
+
+## What verification does and does not do
+
+A verified token says who is asking. It does not change whether they may: the
+page's origin must still be on the allowlist, and rate limits and the daily
+token budget apply unchanged. Identity is checked after those, and only then
+is the visitor's row written.
+
+A token that fails verification is refused with `401`, even when anonymous
+access is allowed. A broken integration surfaces as a refusal rather than as a
+visitor who quietly loses their history. The response carries CORS headers, so
+the SDK reports it as a `DeskbellError` with status `401` rather than a
+network failure.
+
+## Who owns a conversation
+
+A verified visitor owns the conversations carrying their identity. An
+anonymous visitor owns the conversations carrying their session. The two
+never mix: signing in does not show the anonymous threads of the same
+browser, and a session id cannot reach a signed-in visitor's threads.
+Ownership is what authorises listing, reading, continuing, rating, renaming
+and deleting a conversation.
+
+The visitor's row is created on first sight and its name and email refreshed
+from the token on every request. Removing it leaves their conversations in
+place as anonymous.
+
+## Context and scope
+
+A page can attach where a conversation started, as a small set of keys with an
+id and an optional name. It is stored once, when the conversation is created,
+and never interpreted by the server.
+
+```ts
+client.ask({ message, context: { site: { id: "42", name: "Shop" } } });
+client.conversations.list({ scope: { key: "site", id: "42" } });
+```
+
+`scope` narrows the visitor's list to conversations whose context carries that
+key with that id. The dashboard shows the pairs on the conversation page. At
+most eight keys, each an identifier.
+
+## Titles, rename and delete
+
+A new conversation is titled with its first question, trimmed to eighty
+characters. Set `DESKBELL_THREAD_TITLES=model` to have the worker write a
+short title with the chat model instead; it costs one small call per
+conversation, counted against the project's daily token budget. See
+[Configuration](/deploy/environment-variables).
+
+`client.conversations.rename(id, title)` sets a title the titling job never
+overwrites. `client.conversations.delete(id)` removes a conversation from the
+visitor's history. The row stays in the dashboard, where the gap analytics
+built on it remain valid.
+
+## Staff preview
+
+A support person's own token can open any conversation of the project,
+read-only, when it carries the staff claim: a path into the token's claims
+(dots descend, for example `realm_access.roles`) and the value to look for
+(an array claim matches by membership). Without a configured claim the
+endpoint refuses everyone.
+
+```html
+<deskbell-widget project-key="pk_live_..." readonly conversation-id="conv_..."></deskbell-widget>
+```
+
+With `readonly` the widget shows the transcript with no composer and the
+visitor's votes visible but disabled, and dispatches `deskbell:preview` with
+the title and the owner's name and email. Give the element the staff member's
+token through `getAuthToken` as usual. A 403 shows the `previewForbidden`
+copy. `client.conversations.preview(id)` is the same call from the SDK.
+
+Without `readonly`, `conversation-id` opens the visitor's own thread of
+that id, stale or not, which lets a page deep-link into a conversation.
+
+## Limits
+
+One issuer per project. Signed JWTs only; opaque tokens and introspection are
+not supported. A visitor's anonymous threads are not migrated to their
+identity when they sign in.

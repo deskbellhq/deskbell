@@ -1,0 +1,85 @@
+---
+title: Docker Compose
+description: The four services in the Compose file, what each does, which ports are exposed, and which variables pass through from .env into the containers.
+updated: 2026-09-21
+---
+
+`docker compose up` is the supported install. The file defines four services and
+exposes exactly one port.
+
+## The services
+
+| Service | What it does | Exposed |
+|---|---|---|
+| `db` | Postgres 17 with pgvector. Named volume `deskbell-pgdata` | `127.0.0.1:5432` only |
+| `migrate` | Runs migrations, then seeds a development project, then exits | No |
+| `web` | Dashboard and the public API, including `/deskbell.js` | `3000:3000` |
+| `worker` | Crawling, chunking and embedding jobs | No |
+
+`migrate` is a one-shot service. Both `web` and `worker` wait for it to complete
+successfully, so the schema is always in place before anything reads it. It
+restarts never.
+
+Only `web` is published to your host. Postgres binds to `127.0.0.1` so it is not
+reachable from the network, and the worker has no listening port at all. If you
+put this behind a reverse proxy, `web` on port 3000 is the only thing that
+should be in front of it.
+
+`web` has a health check that polls `/api/health` every 30 seconds, which is the
+same endpoint you can point a load balancer at.
+
+## Environment
+
+Compose reads `.env` next to the file and forwards the variables below into the
+containers. Everything unset keeps the default described in
+[Environment variables](/deploy/environment-variables).
+
+| Group | Variables | Services |
+|---|---|---|
+| Required | `BETTER_AUTH_SECRET` (Compose refuses to start without it) | `web` |
+| Dashboard | `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SMTP_URL`, `EMAIL_FROM` | `web` |
+| Model providers | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OLLAMA_BASE_URL`, `DESKBELL_CHAT_MODEL`, `DESKBELL_EMBEDDING_MODEL`, `DESKBELL_REASONING_EFFORT` | `web`, `worker` |
+| Gaps and threads | `DESKBELL_GAPS_*`, `DESKBELL_THREAD_TITLES`, `DESKBELL_GAP_ANALYST_*`, `DESKBELL_NOTIFICATION_SUMMARY` | `web`, `worker` |
+| Retrieval | `DESKBELL_QUERY_PLANNING`, `DESKBELL_RETRIEVAL_*`, `DESKBELL_RERANK*` | `web` |
+| Vector store | `DESKBELL_VECTOR_STORE`, `WEAVIATE_*` | `web`, `worker` |
+
+`DATABASE_URL` is set inside the file and points at the `db` service. You do not
+need to supply it unless you are replacing Postgres with your own.
+
+A variable that is not in the table is read from the container's environment
+all the same; add it to the `environment:` block of the service that needs it.
+The abuse-protection limits, `DESKBELL_TRUSTED_PROXIES` and
+`DESKBELL_PUBLIC_URL` belong on `web`; the chunking sizes belong on `worker`.
+
+## Common changes
+
+**Use a Postgres you already run.** Delete the `db` service, remove the
+`depends_on` entries that reference it, and set `DATABASE_URL` on `migrate`,
+`web` and `worker` to your own connection string. The database still needs
+pgvector.
+
+**Change the port.** Edit the `ports` mapping on `web`. The left side is your
+host: `"8080:3000"` serves it on 8080.
+
+**Persist across rebuilds.** Data lives in the `deskbell-pgdata` named volume,
+so `docker compose down` keeps it and `docker compose down -v` deletes it.
+
+## Watching it work
+
+```bash
+docker compose logs -f worker   # crawling and embedding
+docker compose logs -f web      # requests and answers
+docker compose ps               # health status
+```
+
+Ingestion happens in `worker`. If a source is stuck at `pending`, that is the
+log to read: the first thing that touches the model provider is embedding, so a
+missing or rejected key shows up there rather than in `web`.
+
+## Scope
+
+The file is a working single-machine deployment. It terminates no TLS, manages
+no secrets beyond `.env`, and takes no backups; the seeded development project
+exists to make the first run interesting rather than to be kept. Read the
+[production checklist](/deploy/production-checklist) before this faces the
+internet, and [Upgrading and backups](/deploy/upgrading) for what to keep.

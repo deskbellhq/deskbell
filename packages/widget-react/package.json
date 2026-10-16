@@ -1,0 +1,40 @@
+{
+  "name": "@deskbell/widget-react",
+  "version": "0.0.1",
+  "description": "React wrapper around the Deskbell widget custom element.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "dependencies": {
+    "@deskbell/shared": "workspace:*",
+    "@deskbell/widget": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.2.0",
+    "typescript": "^5.9.0"
+  }
+}

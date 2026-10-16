@@ -1,0 +1,124 @@
+---
+title: Visitor identity
+description: A server learns who is asking either from an ES256 JWT this instance signs (signed token) or from the visitor's own access token, exchanged for one addressed to the server (visitor's own token); anonymous visitors get none of its tools either way.
+updated: 2026-10-05
+---
+
+"Where is my order" needs the server to know who is asking. When a project
+verifies [visitor identity](/widget/identity), a server can be told about the
+visitor in one of two ways, chosen under **Visitor identity** on the server's
+page:
+
+- **Signed token** — every request carries an `X-Deskbell-Identity` header
+  holding a token this instance signed for that visitor, that server and that
+  conversation. For a server you build to Deskbell's contract.
+- **Visitor's own token** — every request carries the visitor's access token
+  from your identity provider as its `Authorization: Bearer`, exchanged for
+  one addressed to the server when you configure an exchange client. For a
+  server that already is an OAuth resource server of the same provider.
+
+Either way, a server that wants identity is not offered to anonymous visitors
+at all. No identity, no tools that need one.
+
+## Signed token
+
+### The token
+
+An ES256 JWT with these claims:
+
+| Claim | Value |
+|---|---|
+| `iss` | This instance's public URL (`DESKBELL_PUBLIC_URL`, else `BETTER_AUTH_URL`) |
+| `aud` | The server's id, as set under Actions |
+| `sub` | The visitor's subject at your identity provider, as it appeared in the token the widget sent |
+| `deskbell_issuer` | Your identity provider's issuer URL |
+| `email`, `name` | From the visitor's token, when present |
+| `project`, `conversation` | The Deskbell project and conversation ids |
+| `iat`, `exp`, `jti` | Issued now, valid for five minutes, unique |
+
+The token is not the one your identity provider issued: its audience was
+never your MCP server, and forwarding it would hand a third system a
+credential meant for your product. This one says only that Deskbell verified
+the visitor on this request.
+
+### Verifying it
+
+The public keys are at `https://<your instance>/api/v1/actions/jwks`,
+cacheable for five minutes. Verify the signature against the key named by
+the token's `kid`, then check `iss` is your instance, `aud` is the server's
+id and `exp` has not passed. Any JWT library that reads a JWKS URL does this;
+for example with `jose`:
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const keys = createRemoteJWKSet(new URL("https://deskbell.example.com/api/v1/actions/jwks"));
+
+export async function visitorFrom(request: Request) {
+  const token = request.headers.get("x-deskbell-identity");
+  if (!token) return null;
+  const { payload } = await jwtVerify(token, keys, {
+    issuer: "https://deskbell.example.com",
+    audience: "shop",
+  });
+  return { subject: payload.sub, email: payload.email as string | undefined };
+}
+```
+
+Keys are generated on the instance's first use and kept in its database. A
+retired key stays published for a day so a token issued just before rotation
+still verifies.
+
+## Visitor's own token
+
+A server built on the MCP authorization specification answers a request
+without a token with `401` and a `WWW-Authenticate` challenge, and expects an
+OAuth access token issued for it, to the person asking. No instance
+credential satisfies that. In this mode Deskbell sends the token the widget
+sent on the same request — the one it just verified against your identity
+provider — as the server's bearer.
+
+### Exchange or forward
+
+Whether that token can go as it is depends on what the server checks.
+
+- **Token exchange** (the usual case). Register an OAuth client for Deskbell
+  at your identity provider and allow it to exchange tokens for the server's
+  audience. Enter its client id, secret, the server's audience and the scopes
+  the server lists under **Token exchange** on the server's page. On each
+  call Deskbell performs an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)
+  token exchange at the provider's token endpoint — read from
+  `<issuer>/.well-known/openid-configuration` of the issuer configured under
+  [visitor identity](/widget/identity) — and sends the token it receives.
+  The visitor's own token never reaches the server.
+- **Forward unchanged**. Leave the client id empty and the visitor's token is
+  sent as received. Correct only when the server accepts the same audience
+  as the product the widget is embedded in; a server that checks its
+  audience will refuse it. The warning on the signed-token page applies in
+  full: you are handing the server a credential issued for your product.
+
+The exchange happens when the first tool of that server is called in a turn,
+so a question that needs no tool never contacts the provider. Nothing is
+cached between requests and the visitor's token is never stored.
+
+### Listing the tools
+
+Deskbell lists a server's tools when it is attached and on **Refresh tools**.
+A server in this mode refuses the instance alone, so both ask for a token: a
+token the server accepts, pasted once, used for `initialize` and
+`tools/list` and not kept. Your own access token from the product the widget
+sits in, or an exchanged one, both do. An attach without a token saves the
+server as unreachable with the server's `401`; the refresh with a token
+fixes that.
+
+### The server's credential
+
+With the visitor's token as the bearer, the server's own credential, if it
+has one, is a **custom header**, never a second bearer token. Most servers in
+this mode need none.
+
+## The server's own credential
+
+The visitor token is separate from the credential you gave the server under
+*Credential*. That one identifies the Deskbell instance; this one identifies
+the visitor. A server may require both.

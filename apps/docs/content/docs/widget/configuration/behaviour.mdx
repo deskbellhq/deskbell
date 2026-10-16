@@ -1,0 +1,216 @@
+---
+title: Behaviour
+description: The widget's modes and content features, from inline mode and welcome cards to feedback reasons, the thread sidebar, conversation context, the draggable launcher and how answers render.
+updated: 2026-09-21
+---
+
+Each feature here is an option from the [options tables](/widget/configuration),
+set on the element, on the script tag with a `data-` prefix, or from the
+dashboard. This page says what each one does once it is on.
+
+## Inline mode
+
+`mode="inline"` puts the conversation in the page instead of a popover: no
+launcher, always open, the panel fills the element. Give the element a height;
+the widget sets `display: block` on it and nothing else.
+
+```html
+<deskbell-widget project-key="pk_live_..." api-url="https://your-deskbell.example.com" mode="inline"
+  style="height: 600px"></deskbell-widget>
+```
+
+Inline, the header renders only when you slot one, Escape does nothing, and
+the composer is not focused on load. Welcome cards lay out in two columns.
+
+The `header-actions` slot places your own controls beside the close button in
+either mode, for example a button that opens the conversation on a full page.
+
+## Welcome cards
+
+`prompt-groups` replaces the flat suggested questions with cards, each a
+title, an optional description and icon, and up to six prompts. Clicking a
+prompt asks it.
+
+```html
+<deskbell-widget
+  project-key="pk_live_..."
+  prompt-groups='[
+    {"title": "Getting started", "description": "Install and first run",
+     "icon": "https://example.com/rocket.svg",
+     "prompts": ["How do I install?", "What are the requirements?"]},
+    {"title": "Billing", "prompts": ["How do I change my plan?"]}
+  ]'
+></deskbell-widget>
+```
+
+Up to eight groups. Icons are `http(s)` or `data:image/` URLs; anything else
+is dropped. The parts are `welcome`, `welcome-card`, `welcome-card-icon`,
+`welcome-card-title`, `welcome-card-description` and `welcome-prompt`. The
+`welcomeTitle` copy key adds a heading above the empty-state text.
+
+## Feedback reasons
+
+`feedback-reasons` sets the reasons a downvote offers. Each has an `id`
+(lowercase letters, digits, `-` and `_`, up to 40 characters), a `label`,
+and an optional `note`: the maximum length of a free-text field offered with
+that reason. Without `note`, that reason has no text field.
+
+```html
+<deskbell-widget
+  project-key="pk_live_..."
+  feedback-reasons='[
+    {"id": "incorrect", "label": "Incorrect"},
+    {"id": "incomplete", "label": "Incomplete"},
+    {"id": "other", "label": "Other", "note": 300}
+  ]'
+></deskbell-widget>
+```
+
+With configured reasons the visitor picks one before sending; the text field
+appears only for a reason with a `note` limit. Left empty, the widget offers
+its built-in three (`incorrect`, `irrelevant`, `unaddressed`) with a text
+field, as before. Ids reach the dashboard and the [gaps](/operate/gaps) page as
+given. After a reason is sent, the `feedbackThanks` copy shows beside the
+thumbs, and again when the thread is reopened. The `feedbackNote` copy key
+renders a Markdown notice under the reasons, for example about data handling.
+
+## Unverified names
+
+With [answer verification](/knowledge/answer-verification) on, an answer that
+named a feature, setting, button or page the documentation does not contain
+ends with a sentence saying so, in the assistant's voice, inside the bubble:
+"I couldn't find **Find and Replace** in the documentation, so that part may
+not be accurate." The `unsupportedNote` copy key sets the sentence; `{terms}`
+is replaced by the names, each in bold, joined "A, B and C". Leave the
+placeholder out for a generic note. The sentence is styled through the `hedge`
+part, and a reopened thread shows it again.
+
+## Thread sidebar
+
+`history-layout="sidebar"` shows the visitor's conversations in a rail
+beside the thread instead of a list behind a back button: a toggle collapses
+it to icons, a button starts a new conversation, each row opens a thread and
+can delete it after an inline confirmation. With a `scope-key` match the rail
+offers "here" and "all" tabs (the `scopeThis` and `scopeAll` copy keys).
+Narrower than 480 px the open rail overlays the thread.
+
+`resume-thread` decides what a fresh open shows: `last` (the thread this
+browser last had open), `newest` (the visitor's most recent thread, which
+follows a signed-in visitor across devices) or `none`. `thread-idle-minutes`
+is how long a thread may sit silent before the next question starts a new one;
+`0` never rolls over.
+
+The parts are `sidebar`, `sidebar-toggle`, `new-thread-button`,
+`scope-tabs`, `scope-tab`, `thread`, `thread-title`, `thread-meta`,
+`thread-delete` and `thread-confirm`.
+
+## Where a conversation starts
+
+`context` attaches where on your site a conversation starts, as a JSON object
+of identifiers. It is stored with the thread when the thread is created and
+shown in the dashboard. `scope-key` names one of those keys; the thread
+sidebar can then show only the threads started under the same value, with a
+second tab for all of them.
+
+```html
+<deskbell-widget
+  project-key="pk_live_..."
+  context='{"account": {"id": "acc_42", "name": "Acme"}, "site": {"id": "site_7", "name": "Shop"}}'
+  scope-key="site"
+></deskbell-widget>
+```
+
+Neither needs a signed-in visitor. An anonymous session gets the same
+filtering over the threads of that browser session. Scope only ever narrows:
+the list is the visitor's own threads, anonymous or verified, and a scope
+picks among those. It never reaches another visitor's threads, whatever ids
+the page puts in `context`.
+
+The context is written once, when the thread is created; a thread continued
+from another page keeps the ids it started with. Set the attributes before the
+element connects, or update them when the page navigates, so a new thread
+carries the right ids.
+
+## Signed-in visitors
+
+When your project verifies visitors (see [Visitor identity](/widget/identity)), give
+the element a function that returns the visitor's bearer token. It is a
+property, not an attribute: a token does not belong in markup.
+
+```js
+document.querySelector("deskbell-widget").getAuthToken = () => auth.getToken();
+// or, before the bundle loads:
+deskbell("auth", () => auth.getToken());
+```
+
+The function runs before every request and may return a promise. Return
+nothing for an anonymous visitor. A request refused with 401 is retried once
+with a fresh token; if that fails too, the widget shows the `unauthorized`
+copy and dispatches `deskbell:unauthorized`.
+
+## Read-only preview
+
+`readonly` with `conversation-id` shows one conversation as a transcript:
+no launcher, no composer, no sidebar, votes visible but disabled. It is for
+support staff whose token carries the project's staff claim; see
+[Visitor identity](/widget/identity#staff-preview). Without `readonly`,
+`conversation-id` opens the visitor's own thread of that id.
+
+## Draggable launcher
+
+`launcher-draggable` lets visitors move the launcher anywhere on screen. The
+panel follows, opening below the launcher when it sits in the upper half. The
+position is not remembered across page loads. A launcher you slot yourself
+drags too.
+
+## Disclaimer
+
+`disclaimer` is inline Markdown shown above the footer.
+
+```html
+<deskbell-widget project-key="pk_live_..."
+  disclaimer="Answers are AI-generated and may be wrong. [How we handle data](https://example.com/privacy)"
+></deskbell-widget>
+```
+
+## Answer formatting
+
+Answers render as Markdown. The widget parses a fixed subset and builds the
+elements itself; model text is never inserted as HTML, so nothing an answer
+contains can run on your page.
+
+| Rendered | Not rendered |
+|---|---|
+| Paragraphs, with a single newline as a line break | Tables |
+| Headings (as `h3` and `h4` inside the bubble) | Images |
+| Bullet and numbered lists, one level of nesting | Raw HTML (shown as text) |
+| Fenced and inline code | Footnotes, task lists |
+| Links, bare URLs, bold, italic, quotes, rules | Syntax highlighting |
+
+Links open in a new tab and dispatch `deskbell:link` with the `href`. Only
+`http`, `https`, `mailto`, anchors and root-relative paths are followed; any
+other target renders as plain text. A fenced block carries its language as
+`data-lang` on the `md-code` part, so a host page can attach a highlighter of
+its own.
+
+The fenced-code block reads two tokens, `--deskbell-code-bg` and
+`--deskbell-code-fg`. The structural elements expose the parts `md-heading`,
+`md-list`, `md-code` and `md-link`.
+
+To rewrite an answer before it renders, set the element's `answerTransform`
+property to a pure function of the Markdown string. It runs on the partial
+answer at every render while the answer streams.
+
+```js
+document.querySelector("deskbell-widget").answerTransform = (md) =>
+  md.replace(/^(\d+)\. ([^:\n]+):/gm, "$1. **$2:**");
+```
+
+The visitor's own messages, refusals and error messages stay plain text.
+
+## Removing the branding
+
+The widget shows a "Powered by Deskbell" badge by default. The server decides
+whether it appears, so a project administrator cannot switch it off from the
+dashboard, and removing it is an Enterprise Edition term. See
+[Licensing](/developer/licensing) for the licence map.

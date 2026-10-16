@@ -1,0 +1,118 @@
+---
+title: The SDK
+sidebarTitle: SDK
+description: "@deskbell/sdk is the typed client for the public Deskbell API: streamed answers, conversation history and feedback. The widget runs on it, and so can a UI of your own."
+updated: 2026-09-17
+---
+
+`@deskbell/sdk` wraps every public endpoint of a Deskbell server in one
+typed client. The widget is built on it, so a custom UI gets the same streaming,
+history and feedback behaviour the widget has. It is MIT licensed and has no
+runtime dependencies.
+
+```bash
+npm install @deskbell/sdk
+```
+
+## Creating a client
+
+```ts
+import { DeskbellClient } from "@deskbell/sdk";
+
+const client = new DeskbellClient({
+  baseUrl: "https://your-deskbell.example.com",
+  projectKey: "pk_live_...",
+  sessionId: () => getOrCreateVisitorId(),
+});
+```
+
+`baseUrl` is the origin of your Deskbell server. Leave it out when the page is
+served by the same origin.
+
+`sessionId` identifies the visitor. Possession of a session is what authorises
+reading and rating its conversations, so keep it per visitor and persist it
+(the widget stores one in `localStorage`). Pass a function to create it lazily
+on first use.
+
+The project key is visible in page source and is not a secret. The server
+allows requests from the origins on the project's allowlist, so add the origin
+your UI runs on under Settings, Install. [Security](/manage/security) explains what
+protects the endpoints.
+
+## Asking a question
+
+`ask` streams events as the server produces them.
+
+```ts
+let answer = "";
+for await (const event of client.ask({ message: "How do I install the widget?" })) {
+  if (event.type === "token") answer += event.value;
+  else if (event.type === "citations") render(event.citations);
+  else if (event.type === "refusal") answer = "No grounded answer.";
+  else if (event.type === "done") remember(event.conversationId, event.messageId);
+}
+```
+
+Pass `conversationId` to continue a thread; leave it out to start one. The
+`done` event carries the ids you need for both.
+
+Pass an `AbortSignal` to cancel: `client.ask(input, { signal })`. The widget
+aborts when its panel closes.
+
+| Event | Fields | Meaning |
+|---|---|---|
+| `token` | `value` | The next piece of the answer text |
+| `citations` | `citations[]` | The documents the answer draws on: `documentId`, `title`, `snippet`, optional `url` |
+| `refusal` | `reason` | No grounded answer. `no_context`: nothing relevant was retrieved. `no_grounding`: something was, and the model declined to answer from it |
+| `clarify` | `question`, `options[]` | The pages answer the question in more than one way. Show the question, offer the options (page titles), and send the pick as the next message in the same conversation. Only with `DESKBELL_CLARIFY=on` on the server; see [Clarifying questions](/knowledge/clarifying-questions) |
+| `done` | `conversationId`, `messageId` | The answer is complete and persisted |
+
+## Conversation history
+
+```ts
+const recent = await client.conversations.list();
+const messages = await client.conversations.messages(recent[0].id);
+```
+
+`list` returns the session's most recent conversations, newest first, with the
+first question as the title and the last message as a snippet. `messages`
+returns every message of one conversation the session owns, including the
+visitor's vote on each answer.
+
+## Feedback
+
+```ts
+await client.feedback({ messageId, feedback: "down", reason: "incorrect", comment: "..." });
+await client.feedback({ messageId, feedback: null });
+```
+
+Votes upsert. `null` clears a vote. `reason` and `comment` are kept only with a
+downvote. Downvotes feed the [gaps](/operate/gaps) page.
+
+## Errors
+
+Any non-2xx response throws a `DeskbellError` with the HTTP `status` and,
+when the server sent one, `retryAfter` in seconds.
+
+```ts
+import { DeskbellError } from "@deskbell/sdk";
+
+try {
+  for await (const event of client.ask({ message })) { /* ... */ }
+} catch (error) {
+  if (error instanceof DeskbellError && error.status === 429) {
+    wait(error.retryAfter ?? 10);
+  }
+}
+```
+
+A 429 means the visitor or the project hit a rate limit or the project's daily
+token budget. A 403 means the page's origin is not on the allowlist. A 404 means
+the project key is unknown.
+
+## What it does not do
+
+The SDK does not retry, cache or manage sessions beyond holding the id you gave
+it. It has no React bindings; the widget and `@deskbell/widget-react` are the
+bindings. It exposes only endpoints the server answers today: config, ask,
+conversations, messages, feedback and the install beacon.

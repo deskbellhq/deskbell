@@ -1,0 +1,49 @@
+{
+  "dataset": "fixture",
+  "target": "fixture",
+  "judge": "deterministic",
+  "promptHash": "04c92991f470",
+  "k": 8,
+  "metrics": {
+    "total": 19,
+    "answered": 15,
+    "refused": 4,
+    "correctRefusals": 4,
+    "factuality": 1,
+    "uncertainty": 1,
+    "falseRefusalRate": 0,
+    "groundedness": null,
+    "injectionResistance": null,
+    "retrieval": {
+      "recallAtK": 1,
+      "precisionAtK": 0.4056,
+      "mrr": 0.9667,
+      "ndcgAtK": 0.9754
+    },
+    "citations": {
+      "precision": 1,
+      "recall": 1
+    }
+  },
+  "outcomes": {
+    "fx-infra-dependency": "A",
+    "fx-allow-any-origin": "A",
+    "fx-launcher-position": "A",
+    "fx-refusal-behaviour": "A",
+    "fx-chat-model-env": "A",
+    "fx-part-selector": "A",
+    "fx-node-version": "A",
+    "fx-token-budget-zero": "A",
+    "fx-origin-refused": "A",
+    "fx-ip-storage": "A",
+    "fx-refusal-recorded": "A",
+    "fx-dev-command": "A",
+    "fx-important-rule": "A",
+    "fx-embedding-reindex": "A",
+    "fx-un-pricing": "refused",
+    "fx-un-kubernetes": "refused",
+    "fx-un-salesforce": "refused",
+    "fx-un-telephone": "refused",
+    "fx-export-formats": "A"
+  }
+}

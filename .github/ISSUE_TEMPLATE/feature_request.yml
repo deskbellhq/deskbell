@@ -1,0 +1,26 @@
+name: Feature request
+description: Something Deskbell should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [ROADMAP.md](https://github.com/deskbellhq/deskbell/blob/main/ROADMAP.md) first. If it is already there, comment on its discussion instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do and where Deskbell stops you.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The behaviour you want. A sketch of the UI or API is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead

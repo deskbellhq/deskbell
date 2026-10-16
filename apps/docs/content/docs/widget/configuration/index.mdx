@@ -1,0 +1,70 @@
+---
+title: Configure the widget
+description: The four layers of widget configuration, their precedence, and every option the element accepts, listed from the descriptor the widget itself reads.
+updated: 2026-09-21
+---
+
+Four layers, each an escape hatch for the one below. Most deployments stop at
+the first.
+
+1. **Dashboard.** Set appearance under Appearance. No code, no redeploy.
+2. **Attributes.** Override anything per page from the embed code.
+3. **CSS.** `--deskbell-*` custom properties for colour, `::part()` for shape.
+4. **Slots.** Replace the launcher, header, empty state or footer with your own
+   markup.
+
+Precedence, lowest to highest:
+
+```
+defaults  <  dashboard config  <  attributes / JS config  <  host-page CSS
+```
+
+Host-page CSS wins last on purpose. `deskbell-widget { --deskbell-accent: red }`
+is the most explicit statement of intent on the page, so nothing resolved at
+runtime beats it. No rule in the widget uses `!important`.
+
+<Callout>
+Every table in this section is rendered from `packages/shared/src/widget-config.ts`
+at build time. That is the same descriptor the widget, the embed loader, the
+React wrapper, the dashboard editor and the database schema read, so this page
+cannot list an option the widget does not have.
+</Callout>
+
+![Settings, Appearance: the option form on the left and the widget rendering the changes live on the right](/images/dashboard-appearance.png)
+
+## Options
+
+Each option is an attribute on `<deskbell-widget>`. On the script tag, prefix it
+with `data-`.
+
+List options are separated by `|`, because questions contain commas. Object
+options take JSON.
+
+### Identity
+
+<WidgetOptions group="Identity" />
+
+### Theme
+
+<WidgetOptions group="Theme" />
+
+### Launcher
+
+<WidgetOptions group="Launcher" />
+
+### Behaviour
+
+<WidgetOptions group="Behaviour" />
+
+### Content
+
+<WidgetOptions group="Content" />
+
+## Where the rest lives
+
+- [Theming](/widget/configuration/theming): tokens, parts, slots, following the
+  page's theme, and the recipes.
+- [Behaviour](/widget/configuration/behaviour): inline mode, welcome cards,
+  feedback reasons, the thread sidebar, where a conversation starts, the
+  draggable launcher, the disclaimer, answer formatting and branding.
+- [JavaScript API](/widget/javascript-api): commands, events and lifecycle.

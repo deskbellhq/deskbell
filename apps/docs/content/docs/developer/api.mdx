@@ -1,0 +1,125 @@
+---
+title: HTTP API
+description: Every public endpoint on a Deskbell instance, with request and response fields rendered from the same schemas the server validates with, the guard in front of each, and the event format of the answer stream.
+updated: 2026-09-21
+---
+
+The public API lives under `/api/v1` on your instance. It is what the widget
+and the SDK call, it reads no cookies, and every route accepts `OPTIONS` for
+preflight. Bodies are JSON. The field tables on this page are generated from
+the schemas the server validates with; the same contract is available as an
+[OpenAPI document](/openapi.json) for client generators.
+
+## Guards
+
+Every request passes the same checks in order before the handler runs.
+[Security](/manage/security#what-runs-on-every-request) explains each; the
+codes are:
+
+| Code | Cause | Body |
+|---|---|---|
+| `403` | The `User-Agent` looks like a crawler or an HTTP library (`curl/`, `python-requests`, `axios/`, `HeadlessChrome`…) | `{"error": …}` |
+| `404` | Unknown project key | `{"error": …}` |
+| `403` | The request's `Origin` is not on the project's allowlist | `{"error": "Origin not allowed", "reason": …}` |
+| `429` | A per-IP or per-project rate limit, the daily token budget, or the per-IP stream cap | `{"error": "Rate limited", "retryAfter": seconds}`, with `Retry-After` |
+| `401` | The project requires a visitor token and none was sent, or it failed verification | `{"error": "Unauthorized", "reason": "missing" \| "invalid"}` |
+
+`POST` routes require an `Origin` header. A signed-in visitor sends
+`Authorization: Bearer <token>` from the project's identity provider;
+[Visitor identity](/widget/identity) says what is verified.
+
+## Ask
+
+The one call that spends model tokens. Runs every guard, plus the daily token
+budget and the per-address stream cap.
+
+<ApiEndpoint path="/api/v1/ask" />
+
+The response is `text/event-stream`. Each event is one `data:` line holding a
+JSON object; lines beginning with `:` are heartbeat comments and carry
+nothing. The stream opens with a comment at once so the client knows it is
+connected, and sends another after every quiet interval so a proxy does not
+close it mid-answer.
+
+| Event | Fields | When |
+|---|---|---|
+| `token` | `value` | Once per streamed piece of the answer |
+| `citations` | `citations[]`: `documentId`, `title`, `snippet`, `url?`, `kind?` | After the answer, only the sources the model used |
+| `refusal` | `reason`: `no_context`, `no_grounding`, `off_topic`, `guardrail` | Instead of citations, when there is no grounded answer |
+| `clarify` | `question`, `options[]` (page titles) | Instead of an answer, when the pages answer the question in more than one way and `DESKBELL_CLARIFY=on`; send an option back as the next message. See [Clarifying questions](/knowledge/clarifying-questions) |
+| `verification` | `unsupportedTerms[]` | After `citations`, only when the answer named things the documentation does not contain (never with `DESKBELL_VERIFY=off`); the widget speaks them as a sentence under the answer. See [Answer verification](/knowledge/answer-verification) |
+| `action` | `id`, `title`, `status`: `running`, `succeeded`, `failed` | A tool call on the visitor's behalf started or ended ([Actions](/actions)) |
+| `confirm` | `id`, `title`, `summary`, `details`, `input`, `expiresAt` | The turn paused on a tool that needs the visitor's confirmation; `details` is the argument list the card shows (`label`, `value` pairs); `done` follows at once |
+| `done` | `conversationId`, `messageId` | Last. `messageId` is what feedback refers to |
+
+`kind` names the source type of a citation (`docs-crawler`, `corrections` for
+a written answer, `action` for a tool result). A citation without `url` is a
+written answer or a tool result.
+
+To answer a `confirm` event, call `/api/v1/ask` again with the same
+`conversationId`, an empty `message` and `approval: { callId, approved }`.
+The rest of the answer streams as usual. See [Confirmation](/actions/confirmation).
+
+## Config
+
+The project's widget appearance as saved on the Appearance page, plus
+`poweredBy`, which the server decides. Cached for 60 seconds
+(`Cache-Control: public, max-age=60, stale-while-revalidate=300`).
+
+<ApiEndpoint path="/api/v1/config" method="get" />
+
+## Conversations
+
+All five take `projectKey`, `sessionId` and, where named, `conversationId`,
+and answer `404` for a conversation the caller does not own.
+
+### List
+
+<ApiEndpoint path="/api/v1/conversations" />
+
+### Messages
+
+<ApiEndpoint path="/api/v1/conversations/messages" />
+
+### Rename
+
+<ApiEndpoint path="/api/v1/conversations/rename" />
+
+### Delete
+
+<ApiEndpoint path="/api/v1/conversations/delete" />
+
+### Preview
+
+For support staff: any conversation of the project, for a bearer token that
+carries the project's configured staff claim. See
+[Staff preview](/widget/identity#staff-preview).
+
+<ApiEndpoint path="/api/v1/conversations/preview" />
+
+## Feedback
+
+Upserts the vote on one assistant message. A `down` vote is what
+[notifications](/operate/notifications) fire on and what the
+[Gaps](/operate/gaps) page counts.
+
+<ApiEndpoint path="/api/v1/feedback" />
+
+## Ping
+
+The install beacon. Diagnostic only: it records where the widget is live,
+including hosts not on the allowlist, and grants nothing.
+
+<ApiEndpoint path="/api/v1/ping" />
+
+## Other routes
+
+| Route | What it is |
+|---|---|
+| `GET /deskbell.js` | The widget loader, built into the image. `503` until the widget has been built |
+| `GET /api/health` | `{"ok": true, "service": "deskbell-web"}`. What the Compose health check and a load balancer poll |
+| `GET /gaps/export?format=csv\|dataset` | A dashboard download, session-gated. The `dataset` format loads into the [eval harness](/operate/evaluation) |
+| `GET /docs/openapi.json` | This contract as OpenAPI 3.1, served by the documentation site |
+
+The dashboard's own pages and `/api/auth/*` belong to the operator side and
+use cookie sessions; they are not part of this API.

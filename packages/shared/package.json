@@ -1,0 +1,56 @@
+{
+  "name": "@deskbell/shared",
+  "version": "0.0.1",
+  "description": "Wire contracts and the widget configuration descriptor shared by the Deskbell server, widget and SDK.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./widget-config": "./src/widget-config.ts",
+    "./widget-config-meta": "./src/widget-config-meta.ts",
+    "./source-types": "./src/source-types.ts",
+    "./markdown": "./src/markdown.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./widget-config": {
+        "types": "./dist/widget-config.d.ts",
+        "import": "./dist/widget-config.js"
+      },
+      "./widget-config-meta": {
+        "types": "./dist/widget-config-meta.d.ts",
+        "import": "./dist/widget-config-meta.js"
+      },
+      "./source-types": {
+        "types": "./dist/source-types.d.ts",
+        "import": "./dist/source-types.js"
+      },
+      "./markdown": {
+        "types": "./dist/markdown.d.ts",
+        "import": "./dist/markdown.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -1,0 +1,24 @@
+# Vercel CLI reads this file, not .gitignore. Keep it in step with .gitignore:
+# everything below is build output, caches or local state and must never be uploaded.
+node_modules
+.next
+dist
+out
+.turbo
+.env
+.env.*
+!.env.example
+*.sqlite
+packages/evals/datasets/private
+packages/evals/baselines/private
+packages/evals/reports
+apps/web/test-results
+apps/web/playwright-report
+apps/web/e2e/.auth
+.DS_Store
+*.log
+coverage
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+.git

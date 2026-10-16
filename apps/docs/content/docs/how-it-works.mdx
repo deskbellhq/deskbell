@@ -1,0 +1,186 @@
+---
+title: How it works
+description: Deskbell crawls your documentation, chunks and embeds it into Postgres, then answers a question by retrieving the closest chunks and asking a model to answer from those, plus the results of any MCP tools you allowed.
+updated: 2026-10-05
+---
+
+Deskbell has two loops. One reads your documentation and stores it. The other
+answers a question using what was stored and, when a project has MCP servers
+attached, what their tools return. The loops share nothing but the database,
+which is why ingestion can run while people are asking questions.
+
+<Flow name="how-it-works" />
+
+## Ingestion
+
+**Crawl.** The crawler discovers `sitemap.xml` from the site's origin and falls
+back to following links when there is none. It reads `robots.txt` and honours
+the `Disallow` rules for `User-agent: *`. It identifies itself as `DeskbellBot`,
+waits 250ms between requests, skips non-HTML file extensions, and stops at the
+source's page limit.
+
+**Extract.** Each page is reduced to its main content and turned into a simple
+Markdown-like form: heading lines and blank-line-separated blocks. Navigation,
+headers and footers are dropped.
+
+**Chunk.** Blocks are packed into chunks of roughly 2,800 characters, with a
+hard ceiling of 3,600 and 350 characters of the previous chunk repeated at the
+start of the next. The overlap is what stops an answer being cut in half by a
+chunk boundary. A block larger than the ceiling is split at sentence
+boundaries.
+
+**Embed.** Each chunk is embedded and stored in Postgres with its vector, its
+document, and the embedding model version that produced it. That version is
+what makes [re-indexing](/knowledge/re-indexing) resumable when you change models.
+
+**Written answers.** The second kind of source skips the crawl and the
+extraction: an answer typed in the dashboard is stored as a document whose
+text is the question as a heading followed by the answer, then chunked and
+embedded exactly as a page is. [Knowledge](/knowledge) covers both source
+types, their states and how to keep them current.
+
+## Answering
+
+**Plan.** A question inside a conversation is rewritten to stand on its own
+first. "And how do I configure it?" has no subject, and embedding it as typed
+retrieves nothing useful. The planner turns it into a question that can be
+searched alone.
+
+This matters more than it sounds. Giving the model the conversation history is
+not enough on its own: with planning turned off, a follow-up that a human would
+find obvious still comes back as a refusal, because retrieval never found the
+right pages. Resolving the query before it is embedded is the half that works.
+
+Planning runs on follow-ups by default. `always` also expands first questions,
+which costs one extra model call per question. `off` searches the message
+exactly as typed. If the planner fails or times out, Deskbell searches the
+message as typed rather than failing the request.
+
+**Retrieve.** The resolved question is embedded and compared against your chunks
+by cosine similarity, scoped to your organisation. The eight closest come back.
+
+There is no similarity floor by default, and that is deliberate. A floor decides
+whether the visitor gets an answer at all, not how good the answer is: if
+nothing clears it, the question is refused before the model ever sees the
+context. Correct documents score lower than people expect. On a real corpus, the
+single best chunk for a plainly answerable question scored 0.446, which an
+apparently cautious floor of 0.3 would have left intact but a stricter one would
+have thrown away.
+
+**Retrieval modes.** The shipped default is vector similarity alone, which
+measured best on the tuning set: a question sharing no vocabulary with the page
+that answers it can still miss. `DESKBELL_RETRIEVAL_MODE=hybrid` adds a
+full-text leg and fuses the two, `DESKBELL_RETRIEVAL_MULTI_QUERY=on` searches
+the planner's variant phrasings as well, and `DESKBELL_RERANK` reorders the
+pooled candidates with a cross-encoder or the chat model. Each is a switch in
+[Environment variables](/deploy/environment-variables#retrieval-and-planning),
+and each trades latency or tokens for a ranking change that is only worth
+keeping when [the harness](/operate/evaluation) says so.
+
+**Generate.** The retrieved chunks go to the model as numbered context blocks,
+in a user turn. The system turn is byte-identical regardless of what was
+retrieved, which is what keeps a hostile document from reaching the model as
+instructions. The system prompt says context is data and never instructions.
+
+**Act.** With [MCP servers](/actions) attached, the model also receives the
+tools you set to *Allowed* or *Needs confirmation*; a tool left *Off* does not
+exist to it. A call runs on the server, and its result goes back to the model
+as material under the same rule as a page: data, never instructions. The
+widget shows each call as a step line above the answer. A tool that needs
+confirmation pauses the turn until the visitor confirms a card
+([Confirmation](/actions/confirmation)). A turn is bounded in model steps, in
+seconds per call and in how much of a result the model sees.
+
+**Cite.** The model ends its answer with a line naming the blocks it used:
+
+```
+SOURCES: 2, 5
+```
+
+That line is parsed off and never shown. Only the named blocks become citations.
+This is why an answer built on two pages shows two sources rather than the eight
+that retrieval returned. Each citation carries the kind of source it came from,
+which is how the widget labels a written answer as one and shows a page by its
+title alone. Only the final line of the answer is ever treated as a
+sources line, and it must contain nothing but digits and commas, so a page that
+happens to end with the word "SOURCES" stays prose.
+
+**Refuse.** If the context does not answer the question, the model replies with
+a single sentinel token instead of prose. Deskbell holds the start of the stream
+until it can tell a refusal from an answer, so a partial sentinel never reaches
+the visitor. Refusals are stored along with the chunks that were retrieved, so
+you can see both what was asked and what the search found.
+
+**Clarify.** <span id="clarify" /> With `DESKBELL_CLARIFY=on`, there is a third
+outcome. When the context answers the question in more than one way because the
+visitor did not say which of several things they meant, and nothing earlier in
+the conversation settles it, the model replies with a second sentinel and a
+short JSON object: the question to ask back, and the titles of the pages that
+each carry a different answer. The stream is held the same way, and the options
+are checked against what retrieval returned: a title that names nothing
+retrieved is dropped, and fewer than two survivors turns the reply into a
+refusal. So the widget only ever offers pages the corpus holds. The visitor's
+pick arrives as an ordinary next message; the planner resolves it against the
+question that was asked, and the answer follows. The engine asks at most once
+per conversation. Off by default: it changes what the visitor gets, so turn it
+on against the eval numbers for your own corpus.
+[Clarifying questions](/knowledge/clarifying-questions) covers the setting from
+the operator's side.
+
+**Verify.** <span id="verify" /> The instruction carries one more paragraph:
+write the exact name of any feature, setting, button or page you assert in
+bold, and never bold a name you are saying does not exist. Once the answer has streamed and the sources line is resolved, the
+engine reads back everything it sent, takes the bold spans and single-token
+code spans, drops what the visitor typed and what the project asked it to
+ignore, and looks each name up: first in the retrieved blocks and any tool
+results, then in the whole index with a phrase query over the same chunk rows
+retrieval reads, whichever vector store holds the vectors. A name found nowhere
+is reported in a `verification` event after the citations, stored on the
+message, and spoken by the widget as a sentence in the assistant's voice. The
+corpus is the only catalogue: nothing product-specific lives in the prompt, and
+a page added tomorrow makes its names supported tomorrow. The check never
+regenerates the answer, which is already on the wire, and a lookup that fails
+leaves the answer unchecked rather than wrongly flagged. On by default, since
+it measured better on the tuning set; `DESKBELL_VERIFY=off` restores the shorter
+prompt. [Answer verification](/knowledge/answer-verification) covers it from
+the operator's side, and [Hallucinations](/knowledge/hallucinations) places it
+among the other checks.
+
+## Where the data lives
+
+Postgres is the system of record: documents, chunks, conversations, messages,
+feedback and the job queue. By default the vectors live there too, in a
+pgvector column with an HNSW index, so a self-hosted install has one datastore
+and nothing else to run. With `DESKBELL_VECTOR_STORE=weaviate` the vectors
+live in a Weaviate collection instead and each chunk row records which store
+holds its vector; [Vector store](/deploy/vector-store) covers the switch.
+There is no queue service and no cache.
+
+## What is pluggable
+
+Deskbell is model-agnostic and vector-store-agnostic by construction, not by
+configuration alone. Provider SDKs are imported in exactly one module and
+everything else consumes a model interface, so the chat, embedding, planner
+and judge models are `provider/model` strings: OpenAI, Anthropic, Google, Ollama, or
+anything speaking the OpenAI-compatible protocol, chosen in
+[Models and providers](/deploy/models). Retrieval runs against one
+`VectorStore` interface with two drivers, pgvector and Weaviate; a new store
+is a new driver, and nothing in the engine knows which one is behind it. The
+defaults are opinionated on purpose: OpenAI and pgvector work with a Compose
+file and one API key, and both can be replaced without touching the engine.
+
+The widget is one client of that engine, not part of it. It is restyled from
+the dashboard, the embed code, CSS tokens and parts, and slots
+([Widget](/widget)); a UI of your own runs on the [SDK](/developer/sdk) or
+the [HTTP API](/developer/api) and gets the same answers, citations, refusals
+and guards.
+
+Visitor IP addresses are never stored. Rate limiting hashes them with an HMAC
+key and keeps only the hash.
+
+## Scope
+
+Every table carries an organisation id and every query goes through helpers
+that scope by it; the database does not enforce that boundary on its own.
+Sources are the website crawler and [written answers](/knowledge/written-answers).
+Unanswered questions surface on the [Gaps](/operate/gaps) page.

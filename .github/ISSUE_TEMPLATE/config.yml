@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://deskbell.dev/docs
+    about: How to run, configure and embed Deskbell.
+  - name: Security report
+    url: https://github.com/deskbellhq/deskbell/blob/main/SECURITY.md
+    about: Vulnerabilities go to security@deskbell.dev, never to a public issue.

@@ -1,0 +1,4 @@
+{
+  "title": "Manage",
+  "pages": ["index", "members-and-roles", "authentication", "data-retention", "security"]
+}

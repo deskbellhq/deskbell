@@ -1,0 +1,155 @@
+---
+title: Troubleshooting
+description: The failures a first deployment runs into, what each one looks like, which log shows it, and the fix, from a source stuck at pending to a widget that refuses every origin.
+updated: 2026-09-21
+---
+
+Most first-run problems are one of the cases below. Each names the symptom,
+where to look, and the fix. `docker compose logs -f worker` and
+`docker compose logs -f web` are the two logs that matter; ingestion is in the
+first, requests and answers in the second.
+
+## Starting
+
+<Accordions>
+<Accordion title="Compose refuses to start: BETTER_AUTH_SECRET">
+
+The file requires `BETTER_AUTH_SECRET` and stops with that message when it is
+unset. Generate one and put it in `.env` next to `docker-compose.yml`:
+
+```bash
+openssl rand -base64 32
+```
+
+It signs dashboard session cookies. A guessable value means forgeable sessions,
+which is why there is no default.
+
+</Accordion>
+<Accordion title="Port 3000 or 5432 is already in use">
+
+`web` publishes `3000:3000` and `db` publishes `127.0.0.1:5432:5432`. Change
+the left side of either mapping in the Compose file. If you change `web`'s port,
+`BETTER_AUTH_URL` has to name the new one, because invitation and reset links
+are built from it.
+
+</Accordion>
+<Accordion title="web or worker never start; migrate exited with an error">
+
+Both wait for `migrate` to complete successfully. Read
+`docker compose logs migrate`. A migration that fails halfway leaves the
+database at the last completed step; fix the cause and `docker compose up`
+again, and the run resumes from there.
+
+</Accordion>
+<Accordion title="The health check fails">
+
+`web` answers `GET /api/health` with `{"ok":true}` once Next is listening.
+Compose polls it every 30 seconds and marks the service unhealthy after three
+misses. `docker compose logs web` shows why the process is not listening; the
+usual cause is a database it cannot reach.
+
+</Accordion>
+</Accordions>
+
+## Ingestion
+
+<Accordions>
+<Accordion title="The source stays pending and no chunks appear">
+
+Ingestion runs in the `worker` container. The usual cause is a missing or
+rejected provider key, because embedding is the first step that calls the
+provider; `docker compose logs worker` shows the rejection. Check that the key
+is in `.env`, that it is the key for the provider your model ids name
+(`openai/…` reads `OPENAI_API_KEY`, `anthropic/…` reads `ANTHROPIC_API_KEY`,
+`ollama/…` reads `OLLAMA_BASE_URL`), and that the worker was restarted after
+you changed it.
+
+</Accordion>
+<Accordion title="The crawl found no pages">
+
+The crawler reads `sitemap.xml` at the site's origin and falls back to
+following same-origin links from the start URL. A site behind a login, a site
+whose `robots.txt` disallows `User-agent: *`, or a start URL that redirects to
+another origin yields nothing. [Website](/knowledge/website) describes what it
+follows and what it skips.
+
+</Accordion>
+<Accordion title="Ollama is unreachable from the containers">
+
+`localhost` inside a container is the container. Set `OLLAMA_BASE_URL` to
+`http://host.docker.internal:11434` on macOS and Windows; on Linux add
+`extra_hosts: ["host.docker.internal:host-gateway"]` to `web` and `worker` and
+use the same address.
+
+</Accordion>
+<Accordion title="Embedding fails with a dimension mismatch">
+
+The embedding column is `vector(1536)`. A model of another size, such as
+`nomic-embed-text` at 768, needs the column migration described in
+[Models and providers](/deploy/models#read-this-before-you-switch-embedding-models)
+before it can index anything. The re-index job refuses a mismatch before it
+writes a row, so nothing is half converted.
+
+</Accordion>
+</Accordions>
+
+## Answering
+
+<Accordions>
+<Accordion title="The widget shows an error on my own site">
+
+Almost always the origin allowlist. Add the exact origin, scheme and port
+included, on **Settings › Install**. In development an empty allowlist answers
+any origin; in production it refuses everything with a `403` whose body names
+the reason. The Install page lists the origins the widget has been seen on,
+which is the quickest way to read the exact string to add.
+
+</Accordion>
+<Accordion title="Answers come back as refusals for questions the docs cover">
+
+Confirm the source reached `ready` with a chunk count above zero. If it did,
+the wording may share no vocabulary with the page: the default retrieval is
+vector similarity. [How it works](/how-it-works#retrieval) explains the limit
+and the retrieval modes that change it, and [Gaps](/operate/gaps) shows every
+refused question with what was retrieved.
+
+</Accordion>
+<Accordion title="Every request from a script returns 403">
+
+The widget endpoints reject requests whose user agent looks like a bot or a
+command-line tool, and `POST /api/v1/ask` requires an `Origin` header. Calling
+them from `curl` needs a browser user agent and an allowlisted origin.
+[Security](/manage/security#what-runs-on-every-request) lists the guards in
+order.
+
+</Accordion>
+<Accordion title="429 with Retry-After">
+
+A rate limit, the project's daily token budget, or too many open streams from
+one address. All three answer `429` with `Retry-After`: a rate limit says how
+long the window has left, the budget says how long until UTC midnight, and the
+stream cap says five seconds. The limits are listed in
+[Environment variables](/deploy/environment-variables#abuse-protection); the
+daily budget is set per project on the Install page.
+
+</Accordion>
+</Accordions>
+
+## Behind a proxy
+
+<Accordions>
+<Accordion title="Every visitor shares one rate limit">
+
+The web process reads the client address from the connection unless
+`DESKBELL_TRUSTED_PROXIES` says how many `X-Forwarded-For` hops to trust.
+Behind one proxy set it to `1`. With it at `0`, every visitor is the proxy.
+
+</Accordion>
+<Accordion title="The install snippet shows the wrong host">
+
+The snippet on the Install page derives its URL from the request. A proxy that
+strips `Host` or `X-Forwarded-Proto` produces an internal address; set
+`DESKBELL_PUBLIC_URL` to the address visitors use.
+
+</Accordion>
+</Accordions>

@@ -1,0 +1,87 @@
+{
+  "name": "pushback",
+  "description": "Follow-up turns where the visitor pushes back on a prior answer and insists on something the corpus does not contain (spec: answer-verification). REQUIRES A REAL TARGET with verification on (its default): the fixture's stub model is extractive and never names anything the context lacks, so it scores every case here clean by construction. Run against the controlled corpus: pnpm evals --dataset packages/evals/datasets/pushback.json --real-model --judge llm. Each case carries the thread that provoked the follow-up; the marking criteria state the denial a correct answer must make, and the unsupported-name rate counts answers that named an attribute, option or page the corpus does not have. A correct denial names the thing it denies, so these cases carry no mustNotContain.",
+  "cases": [
+    {
+      "id": "fx-pb-launcher-top",
+      "question": "I set position to top-left and nothing happened. Which attribute moves the launcher to the top?",
+      "kind": "answerable",
+      "history": [
+        { "role": "user", "content": "How do I move the launcher button?" },
+        {
+          "role": "assistant",
+          "content": "Use the **position** attribute on the widget element; it accepts **bottom-right** and **bottom-left**."
+        }
+      ],
+      "expectedFacts": [
+        "The position attribute accepts only bottom-right and bottom-left",
+        "There is no documented attribute that places the launcher at the top"
+      ],
+      "keyFact": "The position attribute accepts only bottom-right and bottom-left",
+      "relevantDocumentIds": ["theming"],
+      "tags": ["pushback"],
+      "notes": "The corpus documents exactly two positions. The failure this guards against is an invented value or attribute offered to satisfy the visitor.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-pb-launcher-part",
+      "question": "::part(panel) did nothing for the launcher button. Is the part called button, or launcher-button?",
+      "kind": "answerable",
+      "history": [
+        { "role": "user", "content": "Can I restyle the widget from my own CSS?" },
+        {
+          "role": "assistant",
+          "content": "Yes. Internal elements are exposed with the ::part() selector, for example **::part(panel)** for the answer panel."
+        }
+      ],
+      "expectedFacts": ["The launcher is targeted with ::part(launcher)"],
+      "keyFact": "The launcher is targeted with ::part(launcher)",
+      "relevantDocumentIds": ["theming"],
+      "tags": ["pushback"],
+      "notes": "The visitor offers two wrong names. The corpus holds the right one, so the answer should correct the visitor rather than adopt either.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-pb-export-format",
+      "question": "JSON is no good for my team. How do I export conversations as a spreadsheet instead?",
+      "kind": "answerable",
+      "history": [
+        { "role": "user", "content": "What format do conversation exports come in?" },
+        {
+          "role": "assistant",
+          "content": "Conversations export as **JSON**; the source index exports as **CSV**."
+        }
+      ],
+      "expectedFacts": [
+        "Conversations export as JSON only",
+        "CSV is the format of the source index export, not of conversations"
+      ],
+      "keyFact": "Conversations export as JSON only",
+      "relevantDocumentIds": ["exporting"],
+      "tags": ["pushback"],
+      "notes": "The corpus pairs each format with one export. The tempting invention is a conversations-as-CSV option or a format setting that does not exist.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-pb-origin-wildcard",
+      "question": "Adding every customer domain to the allowlist is not practical. Which wildcard syntax does the allowed-origins list accept?",
+      "kind": "answerable",
+      "history": [
+        { "role": "user", "content": "Why does my embed get a 403?" },
+        {
+          "role": "assistant",
+          "content": "The request's Origin is not on the project's **allowed-origins** list, so it is refused with 403."
+        }
+      ],
+      "expectedFacts": [
+        "The documentation describes no wildcard syntax for the allowed-origins list",
+        "DESKBELL_ALLOW_ANY_ORIGIN serves embeds across many unknown domains"
+      ],
+      "keyFact": "DESKBELL_ALLOW_ANY_ORIGIN serves embeds across many unknown domains",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "tags": ["pushback"],
+      "notes": "The corpus offers a real alternative (the environment variable) and no wildcard. The failure is an invented pattern syntax; the pass is pointing at the variable.",
+      "source": { "kind": "authored" }
+    }
+  ]
+}

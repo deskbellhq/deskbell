@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "zinc",
+    "cssVariables": true
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@deskbell/ui/components",
+    "utils": "@deskbell/ui/lib/utils",
+    "hooks": "@deskbell/ui/hooks",
+    "lib": "@deskbell/ui/lib",
+    "ui": "@deskbell/ui/components"
+  }
+}

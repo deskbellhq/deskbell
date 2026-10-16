@@ -1,0 +1,51 @@
+---
+title: Commands
+description: The commands an operator runs from a checkout, from migrations and seeding through the eval harness to re-indexing a project and pruning a Weaviate collection.
+updated: 2026-09-21
+---
+
+Everything here runs from the repository root. The `pnpm` scripts read `.env`
+from the root; the `tsx` scripts pass `--env-file-if-exists=.env` for the same
+effect, so `DATABASE_URL` and the model variables come from the same file the
+dev servers use.
+
+## Setup and database
+
+| Command | What it does |
+|---|---|
+| `pnpm dx` | One-command bootstrap: copies `.env.example` to `.env` if missing, starts Postgres in Docker, installs, migrates, seeds, starts the dev servers |
+| `pnpm db:migrate` | Applies pending migrations from `packages/db/migrations`. Under Compose the `migrate` service runs this |
+| `pnpm db:seed` | Creates the development organisation and project (`proj_dev`, public key `pk_dev_default`). Idempotent |
+| `pnpm db:generate` | Generates a migration from a schema change. Contributors only |
+| `pnpm dev` | Starts `web` on 3000, the worker, and the docs site on 3001 |
+| `pnpm --filter @deskbell/worker start` | The worker on its own, as the image runs it |
+
+## Evaluation
+
+| Command | What it does |
+|---|---|
+| `pnpm evals` | Replays a question set against the engine and reports. [Evaluation](/operate/evaluation) lists the flags: `--dataset`, `--target`, `--project`, `--judge`, `--retrieval-only`, `--json`, `--markdown` |
+| `pnpm evals:check` | Runs the fixture set with a stub model and compares to the committed baseline. What CI runs; refuses to update the baseline |
+| `pnpm evals -- --update-baseline` | Rewrites the baseline after an intended change |
+| `pnpm sweep` | Runs a matrix of retrieval configurations over one dataset and writes a comparison to `packages/evals/reports/sweep/` |
+
+## Knowledge and retrieval
+
+| Command | What it does |
+|---|---|
+| `pnpm exec tsx --env-file-if-exists=.env scripts/reindex-project.ts --project <id> [--target-version n] [--model provider/model]` | Re-embeds one project's chunks without the worker: the same resumable loop as the **Re-embed** button. A second run finds nothing to do |
+| `pnpm exec tsx --env-file-if-exists=.env scripts/cluster-gaps.ts --project <id> [--reset]` | Runs gap clustering now instead of waiting for the hourly job. `--reset` rebuilds every cluster from the rows, as the dashboard's re-cluster does |
+| `pnpm vector-store:prune [--org <id>] [--dry-run]` | Weaviate only. Removes objects whose chunk row is gone and reports rows whose object is missing. Never writes to Postgres |
+
+## Repository
+
+| Command | What it does |
+|---|---|
+| `pnpm lint`, `pnpm lint:fix` | Biome over the whole repository |
+| `pnpm typecheck`, `pnpm test`, `pnpm build` | Every package, through Turborepo |
+| `pnpm e2e` | The Playwright suite against its own database |
+| `pnpm docs:widget` | Regenerates `docs/widget-customization.md` from the widget descriptor; `--check` fails if it is stale |
+| `pnpm docs:dev`, `pnpm docs:build`, `pnpm docs:check` | This site |
+
+Project ids are visible in the dashboard URL and in `docker compose logs
+worker`; the seeded project is `proj_dev`.

@@ -1,0 +1,20 @@
+Deskbell Enterprise Edition (EE) License
+
+Copyright (c) 2026 Deskbell
+
+The software and associated documentation files in this directory ("EE
+Software") may only be used in production if you (and any entity that you
+represent) hold a valid Deskbell Enterprise subscription for the correct
+number of seats/instances.
+
+You are free to view, download, and modify the EE Software for development
+and testing purposes without a subscription.
+
+You may not:
+  - use the EE Software in production without a valid subscription;
+  - remove or alter any license, copyright, or attribution notices;
+  - redistribute the EE Software as part of a competing product.
+
+All rights not expressly granted are reserved. This license does not affect
+the rest of the repository, which is licensed as described in the repository
+root LICENSE file.

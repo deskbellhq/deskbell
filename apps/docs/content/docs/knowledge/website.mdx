@@ -1,0 +1,95 @@
+---
+title: Website
+description: The crawler discovers your sitemap, honours robots.txt, extracts the main content of each page, and splits it into overlapping chunks for embedding.
+updated: 2026-09-21
+---
+
+A website source is a documentation site the worker crawls. Give it a start
+URL and it finds the pages, extracts the readable content, and stores it as
+embedded chunks. The other kind of source,
+[Written answers](/knowledge/written-answers), holds answers you write yourself.
+
+## Configuration
+
+The Sources page asks for two things:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Start URL | required | Where the crawl begins. The sitemap is discovered from its origin |
+| Page limit | `50` | Hard ceiling for this source, up to 10,000 |
+
+The connector also accepts `includePaths`, a list of path prefixes that
+restricts the crawl to part of a site, for callers that create sources from
+code.
+
+## How it finds pages
+
+It fetches `/robots.txt` from the origin first, reading two things: the
+`Sitemap:` lines, and the `Disallow:` prefixes in the `User-agent: *` group.
+Disallowed prefixes are skipped. If `robots.txt` is unreachable, the crawl
+proceeds with no restrictions.
+
+Sitemaps come first, because a sitemap is the site telling you what it considers
+a page. A `sitemapindex` is followed one level deep. When there is no usable
+sitemap, the crawler falls back to following links from the start URL.
+
+Either way it stops at the page limit.
+
+## How it behaves
+
+It identifies itself as `DeskbellBot/0.1` with a link to the repository, waits
+250ms between requests, times out after 15 seconds per page, and ignores
+anything larger than 2MB. URLs with non-HTML extensions are skipped before being
+fetched, and fragments are stripped so `#section` links do not produce duplicate
+pages.
+
+<Callout type="warn">
+Crawl sites you control. Deskbell will fetch every page it finds, and the
+politeness delay makes it well-behaved rather than invisible.
+</Callout>
+
+## What it keeps from a page
+
+Each page is stripped of `script`, `style`, `nav`, `header`, `footer`, `aside`,
+`form`, `iframe`, `svg`, and anything marked `aria-hidden` or carrying a
+navigation, banner or contentinfo role. What remains is turned into headings and
+blocks: paragraphs, list items, preformatted blocks, table cells and
+blockquotes.
+
+Blocks shorter than 40 characters are dropped, which removes most stray labels
+and breadcrumbs.
+
+The result is deliberately plain: heading lines and blank-line-separated blocks.
+That structure is what the chunker splits on, so a chunk tends to break at a
+heading rather than mid-sentence.
+
+Content is stored as extracted. Nothing is cleaned or rewritten, including text
+that looks like instructions aimed at a model. That content is flagged instead,
+which [Re-indexing](/knowledge/re-indexing#injection-flagging) covers.
+
+## Chunking
+
+Blocks are packed toward roughly 2,800 characters, with a hard ceiling of 3,600
+and 350 characters of the previous chunk repeated at the start of the next. A
+block over the ceiling is split at sentence boundaries.
+
+The overlap exists so an answer that straddles a chunk boundary survives it.
+Without overlap, a procedure split across two chunks retrieves only half of
+itself.
+
+## Watching a crawl
+
+Sources move through `pending`, then `ready` once every chunk is stored. Page
+and chunk counts appear on the source row.
+
+Ingestion runs in the worker process, so `docker compose logs -f worker` is
+where the detail is. A source stuck at `pending` with zero chunks is usually a
+model provider problem rather than a crawl problem, because embedding is the
+first step that calls the provider.
+
+## Other sources
+
+The crawler fetches; [written answers](/knowledge/written-answers) are typed in
+the dashboard. A new connector is one interface and a fixture, which makes it
+the best-scoped starting point for a contribution: see
+[Contributing](/developer/contributing).

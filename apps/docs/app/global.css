@@ -1,0 +1,213 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/*
+ * Deskbell brand tokens.
+ *
+ * The light values are copied from the marketing site's `app/globals.css` so
+ * the two sites are the same colour, not approximately the same colour. Do not
+ * re-pick them here; change them there first.
+ *
+ * The dark set is authored here because the marketing site has no dark mode
+ * yet. Treat it as the canonical Deskbell dark palette.
+ */
+@theme {
+  /* Marketing-site tokens, kept under their own names so pages can use them. */
+  --color-paper: #ffffff;
+  --color-paper-2: #f7f7f8;
+  --color-paper-3: #fbfbfc;
+  --color-ink: #111827;
+  --color-ink-2: #4b5563;
+  --color-ink-3: #6b7280;
+  --color-ink-deep: #0a0a0b;
+  --color-bell: #b45309;
+  --color-bell-lite: #fde68a;
+  --color-grounded: #2b6b4f;
+  --color-grounded-lite: #eaf2ed;
+  --color-grounded-deep: #1e4d39;
+  --color-line: #111827;
+
+  --shadow-hard: 1px 1px 0 0 #000;
+  --shadow-hard-lg: 3px 3px 0 0 #000;
+
+  /* Fumadocs surface tokens, mapped onto the above. */
+  --color-fd-background: #ffffff;
+  --color-fd-foreground: #111827;
+  --color-fd-muted: #f7f7f8;
+  --color-fd-muted-foreground: #4b5563;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #111827;
+  --color-fd-card: #fbfbfc;
+  --color-fd-card-foreground: #111827;
+  --color-fd-border: rgba(17, 24, 39, 0.14);
+  --color-fd-primary: #2b6b4f;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #f7f7f8;
+  --color-fd-secondary-foreground: #111827;
+  --color-fd-accent: #eaf2ed;
+  --color-fd-accent-foreground: #1e4d39;
+  --color-fd-ring: #b45309;
+}
+
+.dark {
+  --color-paper: #0a0a0b;
+  --color-paper-2: #141416;
+  --color-paper-3: #101012;
+  --color-ink: #ededf0;
+  --color-ink-2: #a1a1aa;
+  --color-ink-3: #8b8b93;
+  --color-bell: #d99a3f;
+  --color-bell-lite: #4a3413;
+  --color-grounded: #6fbf95;
+  --color-grounded-lite: #16241d;
+  --color-grounded-deep: #a9dcc2;
+  --color-line: rgba(255, 255, 255, 0.7);
+
+  --shadow-hard: 1px 1px 0 0 rgba(255, 255, 255, 0.55);
+  --shadow-hard-lg: 3px 3px 0 0 rgba(255, 255, 255, 0.55);
+
+  --color-fd-background: #0a0a0b;
+  --color-fd-foreground: #ededf0;
+  --color-fd-muted: #141416;
+  --color-fd-muted-foreground: #a1a1aa;
+  --color-fd-popover: #131315;
+  --color-fd-popover-foreground: #ededf0;
+  --color-fd-card: #101012;
+  --color-fd-card-foreground: #ededf0;
+  --color-fd-border: rgba(255, 255, 255, 0.14);
+  --color-fd-primary: #6fbf95;
+  --color-fd-primary-foreground: #08120d;
+  --color-fd-secondary: #17171a;
+  --color-fd-secondary-foreground: #ededf0;
+  --color-fd-accent: rgba(111, 191, 149, 0.16);
+  --color-fd-accent-foreground: #a9dcc2;
+  --color-fd-ring: #d99a3f;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Opening the search dialog locks body scroll, and the scroll-lock library
+ * compensates for the scrollbar by writing an inline margin. `scrollbar-gutter`
+ * above already reserves that space, so the compensation shifts the whole page
+ * sideways. Overriding an inline style is the one case `!important` is for.
+ */
+html > body[data-scroll-locked] {
+  /* biome-ignore-start lint/complexity/noImportantStyles: overrides an inline style */
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+  /* biome-ignore-end lint/complexity/noImportantStyles: overrides an inline style */
+}
+
+/*
+ * Flow diagrams (components/flow.tsx). The figure's colour is the muted ink;
+ * every stroke, arrowhead and label inherits it through currentColor, so the
+ * drawing follows the theme. Only the store node carries the accent.
+ */
+.db-flow {
+  margin-block: 1.5rem;
+  overflow-x: auto;
+  color: var(--color-ink-2);
+}
+
+.db-flow svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.db-flow figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-ink-3);
+}
+
+.db-flow-lane rect {
+  fill: var(--color-paper-2);
+  stroke: currentColor;
+  stroke-opacity: 0.18;
+  stroke-dasharray: 3 3;
+}
+
+.db-flow-lane text {
+  fill: currentColor;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.db-flow-edges line,
+.db-flow-edges polyline {
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+
+.db-flow-label {
+  fill: currentColor;
+  font-size: 12px;
+}
+
+.db-flow-node rect {
+  fill: var(--color-paper);
+  stroke: currentColor;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+.db-flow-node text {
+  fill: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.db-flow-node .db-flow-sublabel {
+  fill: currentColor;
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+.db-flow-node[data-kind="store"] rect {
+  fill: var(--color-bell-lite);
+  stroke: var(--color-bell);
+  stroke-opacity: 1;
+}
+
+/*
+ * API reference blocks (components/api-reference.tsx), rendered from the
+ * generated OpenAPI document.
+ */
+.db-api-signature code {
+  font-size: 0.9375rem;
+}
+
+.db-api-method {
+  color: var(--color-grounded);
+  font-weight: 700;
+}
+
+.db-api-heading {
+  margin-block: 1rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+.db-api-optional,
+.db-api-limits {
+  font-size: 0.8125rem;
+  color: var(--color-ink-3);
+}

@@ -1,0 +1,103 @@
+---
+title: Contributing
+description: How to set up the repository, the four boundaries reviews enforce, where the licence lines sit, and which parts of Deskbell are the best places to start.
+updated: 2026-09-21
+---
+
+The ground rules are short.
+
+## Setup
+
+```bash
+pnpm dx
+```
+
+That starts Postgres in Docker, runs migrations, seeds a development project,
+and starts both dev servers. You need Node 22 or later and pnpm 10 or later
+(`corepack enable pnpm`).
+
+Then:
+
+```bash
+pnpm lint:fix    # Biome
+pnpm typecheck
+pnpm test
+```
+
+## Browser tests
+
+The dashboard has a Playwright suite under `apps/web/e2e/`. It never touches
+your database: it derives `<name>_e2e` from `DATABASE_URL`, creates it if
+missing, migrates and seeds it with a fixed set of gap rows, registers the
+instance's first user through the real form, and walks the Gaps page at
+desktop and phone width against a production build on port 3300.
+
+```bash
+pnpm --filter @deskbell/web exec playwright install chromium   # once
+pnpm build
+pnpm e2e
+```
+
+No model key is needed; the pages under test call no model. CI runs the same
+suite against a fresh Postgres service. Add a spec for a page when it gains
+behaviour a unit test over pure functions cannot see: navigation, a drawer, a
+download, a server action.
+
+The widget has its own projects in the same suite, `widget` and
+`widget-phone`, under `apps/web/e2e/widget/`. They load `deskbell.js` from the
+server under test into a page served at a stand-in origin, so the origin
+allowlist runs for real; the ask endpoint is stubbed with streamed frames,
+while listing, deleting and the staff preview hit the seeded database. The seed
+signs tokens with a key it generates, so identity is covered without an issuer.
+`pnpm build` before `pnpm e2e` matters here: the server serves the built
+widget.
+
+Below the browser, `packages/widget-core` has DOM tests: `*.dom.test.tsx`
+files render the real panel under happy-dom against a fake SDK client, and run
+with the package's other tests through `pnpm test`.
+
+## Workflow
+
+Non-trivial work starts as a spec in `.ai/specs/{YYYY-MM-DD}-{kebab-title}.md`.
+Look at the existing ones for the shape: what changes, what is deliberately out
+of scope, what is still open, and how it was verified. `TODO(spec: name)`
+comments in the code mark where a spec is expected.
+
+Keep pull requests small and single-purpose.
+
+## Four boundaries reviews enforce
+
+These are enforced because breaking one is expensive to undo later, not because
+of taste.
+
+**Licence direction.** Nothing outside `packages/ee` may import from it except
+behind the documented feature gates. The MIT packages (`widget-*`, `sdk`, `ui`,
+`shared`) must never import the AGPL ones, because those are the packages that
+end up inside someone else's product.
+
+**Tenancy.** Every table carries an organisation id and every query is scoped by
+it. There is no unscoped access path.
+
+**Transport-neutral core.** `packages/core` knows nothing about HTTP, SSE, the
+DOM or widgets. That is what makes a second transport a new adapter rather than
+a rewrite.
+
+**Widget weight.** `widget-core` and its dependencies stay under 40KB gzipped,
+and the build fails if they do not. Nothing third-party beyond Preact: the
+transport comes from `@deskbell/sdk`, which has no dependencies of its own.
+
+## Where to start
+
+Connectors are the best-scoped starting point: a source type is one interface
+in `packages/connectors` and a fixture, and the registry lists the ones that
+would be welcome next.
+
+Documentation is the other one. This site lives in `apps/docs/content/docs` in
+the same repository, so a fix travels with the code it describes, and every
+page carries an edit link.
+
+## Licensing
+
+Which licence applies to the directory you are touching, and what the
+Enterprise Edition boundary is, are on [Licensing](/developer/licensing).
+Contributions are accepted under the licence of the directory they change.

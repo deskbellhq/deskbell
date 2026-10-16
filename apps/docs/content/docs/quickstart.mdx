@@ -1,0 +1,126 @@
+---
+title: Quickstart
+description: Run Deskbell locally with Docker Compose, crawl a documentation site, and get a grounded answer out of the widget in about fifteen minutes.
+updated: 2026-09-21
+---
+
+This takes about fifteen minutes and leaves you with Deskbell running on your
+machine, one documentation site indexed, and the widget answering questions from
+it. Everything runs locally except the calls to your model provider.
+
+## Before you start
+
+You need Docker with Compose, and an API key for a model provider. Compose
+starts Postgres for you, so there is nothing else to install. The steps below
+use OpenAI, which the shipped defaults name; Anthropic for answers, Google, and local
+models through Ollama work the same way with a different key and model id, see
+[Models and providers](/deploy/models).
+
+## 1. Start it
+
+```bash
+git clone https://github.com/deskbellhq/deskbell
+cd deskbell
+cp .env.example .env
+docker compose up
+```
+
+Compose reads `.env` next to the Compose file and refuses to start without
+one: `BETTER_AUTH_SECRET` signs dashboard sessions and has no default. Before
+`docker compose up`, open `.env`, replace the placeholder secret with the
+output of `openssl rand -base64 32`, and set `OPENAI_API_KEY`. Everything else
+in the file can stay as it is for a first run.
+
+Four services start. Postgres comes up first, a one-shot `migrate` service
+creates the schema and seeds a development project, then `web` and `worker`
+start once that finishes. The first build takes a few minutes.
+
+When it settles, open [localhost:3000](http://localhost:3000). You land on the dashboard
+overview, which walks you through the first run: add your docs, ask a question,
+put the widget on your site. The steps below are the same walk.
+
+## 2. Add a documentation site
+
+Paste the URL of a documentation site you control into the first step. The
+same form lives under **Sources**, where every source is listed afterwards.
+
+Deskbell looks for a sitemap first and falls back to following links. It
+respects `robots.txt`. Each page is fetched, stripped to its main content, split
+into chunks, and embedded. The source moves from `pending` to `ready` when the
+last chunk is stored.
+
+A site of fifty pages takes a couple of minutes. Watch the source row for the
+page and chunk counts.
+
+<Callout type="warn">
+Crawl a site you own. Deskbell will fetch every page it finds, and someone
+else's documentation is someone else's bandwidth.
+</Callout>
+
+## 3. Ask it something
+
+The dashboard runs the real widget, so you can ask a question without embedding
+anything. Ask something your documentation actually answers.
+
+You should get a streamed answer with source pills underneath it, each linking
+to the page it came from. Then ask something the documentation does not cover.
+Deskbell should tell you it cannot answer rather than guessing. Both behaviours
+are the product working.
+
+## 4. Put it on your site
+
+Copy the snippet from the third step, or from **Settings › Install**, where the
+allowlist and the token budget also live. It is one tag:
+
+```html
+<script
+  async
+  src="http://localhost:3000/deskbell.js"
+  data-project-key="pk_dev_default"
+></script>
+```
+
+The script mounts the widget itself and works out which server to call from its
+own URL, so there is nothing else to configure.
+
+Before this goes anywhere public, add your site to the origin allowlist, in the
+same step or on the Install page. The project key is visible in your page source
+and is not a secret: origin binding, rate limits and the daily token budget are
+what stop other people spending your model credits. [Security](/manage/security) covers
+the whole picture, and a production instance with an empty allowlist refuses to
+answer at all.
+
+## What to read next
+
+- [How it works](/how-it-works), if you want to know what just happened.
+- [Configuration](/deploy/environment-variables) for every setting.
+- [Production checklist](/deploy/production-checklist) before this faces
+  the internet.
+
+## Common problems
+
+<Accordions>
+<Accordion title="The source stays 'pending' and no chunks appear">
+
+Ingestion runs in the `worker` container, not `web`. Check
+`docker compose logs worker`. The usual cause is a missing or rejected
+`OPENAI_API_KEY`, because embedding is the first step that calls the provider.
+
+</Accordion>
+<Accordion title="Answers come back as refusals for questions the docs cover">
+
+Check that the source reached `ready` and reports a chunk count above zero. If
+it did, the question may genuinely not match anything: the default retrieval is
+vector similarity, so wording that shares no vocabulary with the page can miss.
+[Retrieval](/how-it-works#retrieval) explains the limit and the modes that
+change it.
+
+</Accordion>
+<Accordion title="The widget shows an error on my own site">
+
+Almost always the origin allowlist. Add the exact origin, including the scheme
+and port, on the Install page. In development an empty allowlist answers any
+origin; in production it refuses everything.
+
+</Accordion>
+</Accordions>

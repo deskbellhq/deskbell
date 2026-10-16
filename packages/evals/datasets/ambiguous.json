@@ -1,0 +1,26 @@
+{
+  "name": "ambiguous",
+  "description": "Clarifying questions (spec: clarifying-questions). REQUIRES A REAL TARGET with DESKBELL_CLARIFY=on: the fixture's stub model never asks, and with the setting off the engine never does either, so either combination scores every case here as 'answered instead of asking'. Run against the controlled corpus: DESKBELL_CLARIFY=on pnpm evals --dataset packages/evals/datasets/ambiguous.json --real-model. Each question is under-specified on purpose and the corpus answers it in more than one way; a case passes when the engine asks which reading was meant and offers every page in expectedOptions. Offering more pages than listed is fine — the corpus may hold readings the author did not think of.",
+  "cases": [
+    {
+      "id": "fx-amb-configure",
+      "question": "How do I configure it?",
+      "kind": "ambiguous",
+      "expectedOptions": ["Theming the widget"],
+      "notes": "Nothing in the thread says what 'it' is. The corpus configures the widget's look, the install, and the origin allowlist on different pages.",
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-amb-turn-off",
+      "question": "Can I turn that off?",
+      "kind": "ambiguous",
+      "expectedOptions": ["Origins, rate limits and budgets"],
+      "notes": "Several pages describe something that can be switched: the origin allowlist's fail-closed behaviour, refusals, and the widget's styling layers.",
+      "source": {
+        "kind": "authored"
+      }
+    }
+  ]
+}

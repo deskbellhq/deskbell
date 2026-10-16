@@ -1,0 +1,88 @@
+---
+title: Re-indexing
+description: Changing the embedding model means re-embedding every chunk. The job is resumable, refuses a dimension mismatch before writing anything, and pauses ingestion while it runs.
+updated: 2026-08-25
+---
+
+Every chunk is stored with the version of the embedding model that produced it.
+When you change `DESKBELL_EMBEDDING_MODEL`, the chunks already in the database
+were embedded by a different model, and vectors from two models are not
+comparable. Re-indexing brings them all onto the current one.
+
+## When you need it
+
+A banner appears on the Sources page when the stored embedding versions diverge
+from the configured model. That is the signal.
+
+You do not need it after adding a source. New chunks are stamped with the
+organisation's current generation as they are written, so they join the existing
+set already correct.
+
+## What the job does
+
+It re-embeds every chunk whose version is below the target, and updates each row
+as it goes.
+
+**It is resumable.** The work is selected by predicate rather than by a fixed
+list, so completed rows drop out of scope. If the job stops halfway, running it
+again continues from where it stopped rather than starting over. Running it when
+nothing is stale touches zero rows.
+
+**It refuses a dimension mismatch before writing anything.** The column is
+`vector(1536)`. The job embeds a single probe string first and compares the
+result's length to the column. If they disagree it stops, and the error names
+the migration you need. Nothing is written and nothing is left half-converted.
+
+That matters because the alternative is worse than an error: a partial
+conversion leaves a corpus where some vectors are comparable and some are not,
+and retrieval quietly degrades rather than failing.
+
+<Callout type="warn">
+A full re-index pauses ingestion. The job queue runs serially across the whole
+worker, so while re-indexing runs, crawls and new-document embedding wait. On a
+large corpus, plan for that.
+</Callout>
+
+## Changing embedding model
+
+1. Check the dimension of the new model. `text-embedding-3-small` is 1536.
+   `nomic-embed-text` is 768.
+2. If it differs from 1536, migrate the column first. The re-index job will
+   refuse until you do.
+3. Set `DESKBELL_EMBEDDING_MODEL` and restart.
+4. Run the re-index from the banner on the Sources page.
+5. Wait. Every chunk is sent to the provider again, so this costs whatever
+   embedding your whole corpus costs.
+
+Because of step 5, this is a decision worth making before you index a large
+corpus rather than after.
+
+## Injection flagging
+
+At ingest, each chunk is checked against four deterministic heuristics:
+
+- **Instruction override.** Text telling a reader to ignore, disregard or
+  discard previous instructions, or announcing new ones.
+- **Role markers.** Chat-transcript role labels embedded in prose. A
+  documentation page has no reason to impersonate a conversation.
+- **Assistant address.** Imperatives aimed at a model reading the page rather
+  than at a person.
+- **System-prompt probes.** Text asking for the instructions the assistant was
+  given.
+
+Matches are recorded on the chunk and surfaced as a flagged count per source in
+the dashboard.
+
+The checks are deterministic and involve no model call, because this runs on
+every chunk at ingest scale and a model call there would multiply the cost of
+ingestion.
+
+**Flagged chunks still answer.** Flagging is visibility rather than filtering. A
+false positive costs you a look at your own documentation; a silent drop costs a
+customer part of their documentation with nothing to say why. On a real crawled
+corpus of 97 chunks the heuristics produced no false positives, and ordinary
+documentation imperatives such as "click Save" or "run the installer" are
+specifically tested to stay quiet.
+
+What the engine should do with a flag beyond showing it is deliberately
+undecided until there is data to decide it on.

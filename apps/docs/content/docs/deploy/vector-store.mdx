@@ -1,0 +1,149 @@
+---
+title: Vector store
+description: Choose where Deskbell keeps its search index, pgvector inside Postgres by default or a Weaviate cluster you already run, and how to move between them.
+updated: 2026-09-21
+---
+
+Deskbell stores each chunk's vector in exactly one place: the vector store you
+configure. `DESKBELL_VECTOR_STORE` selects it. Choose before you add your first
+source: changing it later means re-embedding everything (see [Switch vector
+stores](#switch-vector-stores)).
+
+| Variable | Default | Description |
+|---|---|---|
+| `DESKBELL_VECTOR_STORE` | `pgvector` | Which store holds the chunk index. `pgvector` uses the Postgres database Deskbell already runs on; `weaviate` uses a Weaviate cluster you operate. Set the same value on the web app and the worker. |
+
+Whichever store you choose, Postgres keeps every chunk's text, position and state
+and records which store holds its vector. The pgvector extension stays installed
+on both drivers: gap clustering keeps its own embeddings in Postgres.
+
+## Backends
+
+<Accordions>
+<Accordion title="pgvector (default)">
+
+The index lives in the `chunks` table of the database `DATABASE_URL` points at.
+Nothing to configure and nothing to install: `docker compose up` ships it, and it
+is the setup the [quickstart](/quickstart) and the
+[production checklist](/deploy/production-checklist) assume.
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | none | The Postgres connection string, shared with everything else. |
+| `DESKBELL_RETRIEVAL_EF_SEARCH` | `100` | Candidates the HNSW index examines per query. See [Configuration](/deploy/environment-variables#retrieval-and-planning). |
+
+Vectors are 1536-dimensional (`vector(1536)`); an embedding model with a different
+size needs a schema migration.
+
+</Accordion>
+<Accordion title="Weaviate">
+
+Deskbell writes to one collection on a cluster you run, created on first use with
+no vectorizer module: Deskbell's embedding model produces every vector, so the
+collection needs no model access of its own. Replication, sharding and
+multi-tenancy are your cluster's settings to apply to it. Nothing is added to
+`docker-compose.yml`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `WEAVIATE_URL` | none | REST endpoint, `http://host:8080` or `https://…`. Required. |
+| `WEAVIATE_GRPC_URL` | same host, port `50051` | gRPC endpoint. Set it when gRPC is served on another host or port. Both the web app and the worker need it reachable, not only HTTP. |
+| `WEAVIATE_API_KEY` | none | Sent as an API key when the cluster requires authentication. |
+| `WEAVIATE_COLLECTION` | `DeskbellChunk` | Collection name. Starts with a capital letter; letters, digits and underscores. One Deskbell install per collection. |
+
+The client library ships with Deskbell: the Docker images include it, and so does
+`pnpm install` from source: about 20 MB of plain JavaScript, no native code, so
+pgvector deployments pay nothing for it beyond disk. Nothing to install. Should it
+ever be missing (a hand-built image that prunes the workspace root), the worker
+logs the install command at boot and every answer fails with it; Deskbell never
+falls back to pgvector on its own.
+
+`DESKBELL_RETRIEVAL_EF_SEARCH` has no effect on this driver: Weaviate's search
+depth is a setting on the collection's index. A collection fixes its vector size on
+the first object, so an embedding model with a different size needs a new
+`WEAVIATE_COLLECTION` and a re-embed.
+
+Tested with Weaviate 1.32 and `weaviate-client` 3.14 (requires Weaviate 1.23 or later).
+
+</Accordion>
+</Accordions>
+
+## Switch vector stores
+
+Vectors are not copied between stores. Switching re-embeds every chunk into the new
+one, with the embedding model you have configured.
+
+<Steps>
+<Step>
+
+### Configure the new store
+
+Set `DESKBELL_VECTOR_STORE` and the store's variables on the web app **and** the
+worker, then restart both. In Docker Compose that is `.env` plus
+`docker compose up -d`.
+
+</Step>
+<Step>
+
+### Re-embed
+
+Open **Sources**. A notice reports how many chunks are still indexed in the
+previous store. Press **Re-embed all content**. The job reads every chunk's text
+from Postgres, embeds it and writes the configured store. It resumes after a
+restart; a second press is harmless.
+
+</Step>
+<Step>
+
+### Drop the old index
+
+When the notice is gone, the previous index holds nothing Deskbell reads. Delete
+the Weaviate collection if you left Weaviate; if you left pgvector there is nothing
+to do, because each row's vector was cleared as it moved.
+
+</Step>
+</Steps>
+
+**Warning**: until the job finishes, retrieval searches the new store, which fills
+as chunks move; questions about content that has not moved yet are refused.
+Switch outside busy hours. The job costs embedding tokens for the whole corpus,
+cents to a few dollars at the sizes Deskbell indexes, with the default model.
+
+Tested: pgvector → Weaviate and Weaviate → pgvector.
+
+## Check and repair
+
+```bash
+pnpm vector-store:prune [--org <id>] [--dry-run]
+```
+
+Compares a Weaviate collection with the chunk rows. Objects whose chunk no longer
+exists are deleted. Rows that claim an object the collection does not have (after
+a Weaviate restore from an older backup, for example) are reported; **Re-embed**
+on the Sources page repairs them. Safe to run at any time; it never writes to
+Postgres.
+
+## Run Weaviate locally
+
+One container is enough to try the driver:
+
+```bash
+docker run -d --name weaviate -p 8080:8080 -p 50051:50051 \
+  -e AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
+  -e PERSISTENCE_DATA_PATH=/var/lib/weaviate \
+  semitechnologies/weaviate:1.32.0
+```
+
+Set `DESKBELL_VECTOR_STORE=weaviate` and `WEAVIATE_URL=http://localhost:8080` for
+`pnpm dev` and the worker, re-embed if the database already has content, and ask
+the widget something. The [evaluation harness](/operate/evaluation) runs against whichever
+store is configured, which is how to confirm a switch changed nothing about answer
+quality.
+
+## How retrieval uses the store
+
+The store answers one question: which chunks are nearest to this vector, and, in
+hybrid mode, which match these words. Deskbell then reads the winning rows from
+Postgres for titles, URLs and text, and cites them. Scores are cosine similarity
+on both drivers, so every threshold on the [configuration page](/deploy/environment-variables)
+keeps its meaning whichever store you run.

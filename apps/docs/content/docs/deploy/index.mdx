@@ -1,0 +1,49 @@
+---
+title: Deploy Deskbell
+sidebarTitle: Overview
+description: The three ways to run Deskbell, what each needs, and the pages in this section that take you from a first boot to an instance that faces the internet.
+updated: 2026-09-23
+---
+
+Deskbell runs as two processes, `web` and `worker`, against one Postgres
+database with the pgvector extension. Nothing else is required: no queue
+broker, no cache, no separate vector database. Jobs queue in Postgres through
+pg-boss and vectors live in Postgres through pgvector.
+
+## Three ways to run it
+
+| Way | What you need | When |
+|---|---|---|
+| `docker compose up` | Docker with Compose, a model provider key | The supported install. Starts Postgres, migrates, seeds a development project, runs both processes |
+| The images on your own orchestrator | The same two images (`--target web`, `--target worker`), a Postgres 17 with pgvector you provide | When Compose is not how you run things. The [Dockerfile](/deploy/docker-compose#the-services) builds both targets from one context |
+| From source | Node 22, pnpm 10, Postgres 17 with pgvector | Development, or a host without Docker. `pnpm dx` does the bootstrap |
+
+Whichever way, the processes read the same [environment
+variables](/deploy/environment-variables) and the `migrate` step is the same
+Drizzle migration run.
+
+## What the processes do
+
+| Process | Does | Listens |
+|---|---|---|
+| `web` | The dashboard, the widget endpoints under `/api/v1`, `/deskbell.js`, and `/api/health` | `3000` |
+| `worker` | Crawling, chunking, embedding, re-indexing, gap clustering, notification delivery, retention purge, hourly maintenance | Nothing |
+
+Only `web` is reachable from outside. Postgres binds to `127.0.0.1` in the
+Compose file and the worker has no port at all.
+
+## Read in this order
+
+1. [Requirements](/deploy/requirements), then [Docker Compose](/deploy/docker-compose)
+   for the file itself.
+2. [Environment variables](/deploy/environment-variables) for every setting,
+   and [Models and providers](/deploy/models) for the one you will change first.
+3. [Production checklist](/deploy/production-checklist) before the instance
+   faces the internet.
+4. [Upgrading and backups](/deploy/upgrading) once it is running.
+
+[Vector store](/deploy/vector-store) is for the case where you already run a
+Weaviate cluster and want the index there; the default needs no decision.
+[Commands](/deploy/commands) lists what an operator runs from the command
+line, and [Troubleshooting](/deploy/troubleshooting) is where to look when a
+source stays pending or the widget refuses to answer.

@@ -1,0 +1,2289 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Deskbell widget API",
+    "version": "1",
+    "description": "The public API of a Deskbell instance: what the widget and the SDK call. It reads no cookies. Every route accepts OPTIONS for preflight; POST routes require an Origin header on the project's allowlist. Generated from the schemas the server validates with."
+  },
+  "servers": [
+    {
+      "url": "https://your-deskbell.example.com",
+      "description": "Your instance"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Ask",
+      "description": "The one call that spends model tokens."
+    },
+    {
+      "name": "Conversations",
+      "description": "The caller's own threads."
+    },
+    {
+      "name": "Feedback"
+    },
+    {
+      "name": "Install"
+    }
+  ],
+  "paths": {
+    "/api/v1/ask": {
+      "post": {
+        "operationId": "ask",
+        "summary": "Ask a question",
+        "description": "Streams the answer as server-sent events: `token` events, then `citations` or a `refusal`, then `done` with the ids feedback refers to. Lines beginning with a colon are heartbeat comments. Runs every guard, plus the daily token budget and the per-address stream cap.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Continue this conversation. Omit to start a new one. Must belong to the caller, or the response is 404."
+                  },
+                  "message": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 4000,
+                    "description": "The visitor's question, up to 4000 characters."
+                  },
+                  "locale": {
+                    "type": "string",
+                    "maxLength": 35,
+                    "description": "BCP 47 tag of the visitor's UI language. Retrieval is cross-language."
+                  },
+                  "context": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "Where on your site the conversation starts, as identifiers keyed by name. Stored on a new conversation only and ignored when continuing one."
+                  },
+                  "approval": {
+                    "type": "object",
+                    "properties": {
+                      "callId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "approved": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "callId",
+                      "approved"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The visitor's answer to a `confirm` event: the call id and whether to go ahead. Continues the turn that paused in `conversationId`; `message` may be empty. A call that is not pending there, or has expired, is 404."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An event stream. Each `data:` line is one JSON event.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "token"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "citations"
+                        },
+                        "citations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "documentId": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "snippet": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "maxLength": 40
+                              }
+                            },
+                            "required": [
+                              "documentId",
+                              "title",
+                              "snippet"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "citations"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "refusal"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "no_context",
+                            "no_grounding",
+                            "off_topic",
+                            "guardrail"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "verification"
+                        },
+                        "unsupportedTerms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Names the answer asserted that were found neither in the retrieved content nor anywhere in the corpus. Sent after `citations`, only when non-empty."
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "unsupportedTerms"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "done"
+                        },
+                        "conversationId": {
+                          "type": "string"
+                        },
+                        "messageId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "conversationId",
+                        "messageId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "One event per data: line."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Ask"
+        ]
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "operationId": "config",
+        "tags": [
+          "Install"
+        ],
+        "summary": "Read the widget appearance",
+        "description": "The project's widget appearance as saved on the Appearance page, plus `poweredBy`, which the server decides. Cached for 60 seconds.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The project's public key, as printed in the embed snippet. Public by design."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The appearance object. Keys are the widget options in camelCase.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": [
+                    "poweredBy"
+                  ],
+                  "properties": {
+                    "poweredBy": {
+                      "type": "boolean",
+                      "description": "Whether the Powered by Deskbell badge renders."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "post": {
+        "operationId": "conversations",
+        "summary": "List the caller's conversations",
+        "description": "Newest activity first. `scope` keeps only conversations whose stored context carries a key with a given id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "scope": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Keep only conversations whose stored context carries this key with this id."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "How many to return, 1 to 50. Default 20."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The caller's conversations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "The stored title, else the first user message."
+                          },
+                          "snippet": {
+                            "type": "string",
+                            "description": "The last message, truncated server-side."
+                          },
+                          "lastMessageAt": {
+                            "type": "string",
+                            "description": "ISO timestamp of the latest activity."
+                          },
+                          "context": {
+                            "description": "Context attached when the conversation was created.",
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64,
+                                  "pattern": "^[a-z][a-z0-9_-]*$"
+                                },
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 128
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "maxLength": 200
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "updatedAt": {
+                            "description": "ISO timestamp of the conversation row's last update.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "snippet",
+                          "lastMessageAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "conversations"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/v1/conversations/messages": {
+      "post": {
+        "operationId": "messages",
+        "summary": "Replay a conversation",
+        "description": "Every message of one conversation, in order, with each answer's citations, refusal flag and feedback.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The conversation to act on. Must belong to the caller, or the response is 404."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "conversationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The messages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "citations": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "documentId": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "format": "uri"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "snippet": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "maxLength": 40
+                                    }
+                                  },
+                                  "required": [
+                                    "documentId",
+                                    "title",
+                                    "snippet"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The sources the model used. Null on user messages and refusals."
+                          },
+                          "refused": {
+                            "type": "boolean",
+                            "description": "True when the assistant declined to answer from the retrieved content."
+                          },
+                          "feedback": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "up",
+                                  "down"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "feedbackReason": {
+                            "description": "The downvote reason id, when one was given.",
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "actions": {
+                            "description": "Tool calls the answer made or asked about. Absent when none.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "description": "The call, as `approval.callId` names it."
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "The tool's title, as shown to the visitor."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "running",
+                                    "succeeded",
+                                    "failed",
+                                    "pending_approval",
+                                    "approved",
+                                    "denied",
+                                    "expired"
+                                  ]
+                                },
+                                "summary": {
+                                  "description": "One line naming the call, for a confirmation card.",
+                                  "type": "string"
+                                },
+                                "details": {
+                                  "description": "The call's arguments as the confirmation card lists them.",
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "expiresAt": {
+                                  "description": "ISO timestamp after which a pending request can no longer be answered.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "unsupportedTerms": {
+                            "description": "Names the answer asserted that the documentation does not contain. Absent when none.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "role",
+                          "content",
+                          "citations",
+                          "refused",
+                          "feedback",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "messages"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/v1/conversations/rename": {
+      "post": {
+        "operationId": "rename",
+        "summary": "Rename a conversation",
+        "description": "Sets the title the widget's sidebar and the dashboard show.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The conversation to act on. Must belong to the caller, or the response is 404."
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "The new title, 1 to 120 characters, trimmed."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "conversationId",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/v1/conversations/delete": {
+      "post": {
+        "operationId": "delete",
+        "summary": "Delete a conversation",
+        "description": "Soft-deletes the conversation for the caller.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The conversation to act on. Must belong to the caller, or the response is 404."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "conversationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/v1/conversations/preview": {
+      "post": {
+        "operationId": "preview",
+        "summary": "Read any conversation as staff",
+        "description": "For a bearer token that carries the project's configured staff claim. Returns the conversation, its signed-in visitor if any, and every message. 403 without the claim.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "An identifier the client generated and keeps (the widget stores it in localStorage). A conversation belongs to the session that created it."
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Any conversation of the project. Requires a bearer token carrying the project's staff claim."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "conversationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The conversation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversation": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "context": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "pattern": "^[a-z][a-z0-9_-]*$"
+                              },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "context",
+                        "createdAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "endUser": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "email": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "email"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The signed-in visitor the conversation belongs to, when it has one."
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "citations": {
+                            "anyOf": [
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "documentId": {
+                                      "type": "string"
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "format": "uri"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "snippet": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "maxLength": 40
+                                    }
+                                  },
+                                  "required": [
+                                    "documentId",
+                                    "title",
+                                    "snippet"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The sources the model used. Null on user messages and refusals."
+                          },
+                          "refused": {
+                            "type": "boolean",
+                            "description": "True when the assistant declined to answer from the retrieved content."
+                          },
+                          "feedback": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "up",
+                                  "down"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "feedbackReason": {
+                            "description": "The downvote reason id, when one was given.",
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "actions": {
+                            "description": "Tool calls the answer made or asked about. Absent when none.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "description": "The call, as `approval.callId` names it."
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "The tool's title, as shown to the visitor."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "running",
+                                    "succeeded",
+                                    "failed",
+                                    "pending_approval",
+                                    "approved",
+                                    "denied",
+                                    "expired"
+                                  ]
+                                },
+                                "summary": {
+                                  "description": "One line naming the call, for a confirmation card.",
+                                  "type": "string"
+                                },
+                                "details": {
+                                  "description": "The call's arguments as the confirmation card lists them.",
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "expiresAt": {
+                                  "description": "ISO timestamp after which a pending request can no longer be answered.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "unsupportedTerms": {
+                            "description": "Names the answer asserted that the documentation does not contain. Absent when none.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "role",
+                          "content",
+                          "citations",
+                          "refused",
+                          "feedback",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "conversation",
+                    "endUser",
+                    "messages"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "feedback",
+        "summary": "Vote on an answer",
+        "description": "Upserts the vote on one assistant message. A `down` vote is what notifications fire on and what the Gaps page counts.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Must match the conversation's session: possession is the authorization."
+                  },
+                  "messageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The assistant message being rated, from the ask stream's `done` event."
+                  },
+                  "feedback": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "up",
+                          "down"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The vote. `null` clears a previous one."
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_-]{0,39}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "A downvote reason id: one the project configured, or the built-in `incorrect`, `irrelevant` or `unaddressed`. Kept only with `down`."
+                  },
+                  "comment": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Free text with a downvote, up to 1000 characters. Kept only with `down`."
+                  }
+                },
+                "required": [
+                  "projectKey",
+                  "sessionId",
+                  "messageId",
+                  "feedback"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The project requires a visitor token and none was sent, or it failed verification. `reason` is `missing` or `invalid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library, or the Origin is not on the project's allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown project key, or a conversation the caller does not own.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A rate limit, the project's daily token budget, or the per-address stream cap. Retry-After says when.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "const": "Rate limited"
+                    },
+                    "retryAfter": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Seconds until the caller may try again; also sent as Retry-After."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "retryAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Feedback"
+        ]
+      }
+    },
+    "/api/v1/ping": {
+      "post": {
+        "operationId": "ping",
+        "tags": [
+          "Install"
+        ],
+        "summary": "Install beacon",
+        "description": "Sent once per tab session when the widget mounts. Records the request's Origin against the project so the Install page can show where the widget is live, including hosts not on the allowlist. Diagnostic only; grants nothing and skips the allowlist and identity checks.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The project's public key, as printed in the embed snippet. Public by design."
+                  }
+                },
+                "required": [
+                  "projectKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "400": {
+            "description": "The body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The User-Agent looks like a crawler or an HTTP library."
+          },
+          "404": {
+            "description": "Unknown project key."
+          },
+          "429": {
+            "description": "Rate limited."
+          }
+        }
+      }
+    }
+  }
+}

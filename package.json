@@ -1,0 +1,47 @@
+{
+  "name": "deskbell",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Deskbell \u2014 the bell on your product's front desk. Open-source embeddable AI agent that answers from your docs and acts through MCP. Self-hosted, model-agnostic, provably grounded.",
+  "license": "SEE LICENSE IN LICENSING.md",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "turbo run test",
+    "e2e": "pnpm --filter @deskbell/web e2e",
+    "db:generate": "pnpm --filter @deskbell/db generate",
+    "db:migrate": "pnpm --filter @deskbell/db migrate",
+    "db:seed": "pnpm --filter @deskbell/db seed",
+    "dx": "./scripts/dx.sh",
+    "docs:widget": "tsx scripts/gen-widget-docs.ts",
+    "docs:openapi": "tsx scripts/gen-openapi.ts",
+    "docs:dev": "pnpm --filter @deskbell/docs dev",
+    "docs:build": "pnpm --filter @deskbell/docs build",
+    "docs:check": "pnpm --filter @deskbell/docs test",
+    "evals": "tsx --env-file-if-exists=.env scripts/run-evals.ts",
+    "evals:check": "tsx --env-file-if-exists=.env scripts/run-evals.ts --check",
+    "sweep": "tsx --env-file-if-exists=.env scripts/sweep-evals.ts",
+    "vector-store:prune": "tsx --env-file-if-exists=.env scripts/vector-store-prune.ts",
+    "verify-terms": "tsx --env-file-if-exists=.env scripts/verify-terms.ts",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish"
+  },
+  "dependencies": {
+    "weaviate-client": "^3.14.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "@changesets/cli": "^2.29.0",
+    "@huggingface/transformers": "^4.2.0",
+    "tsx": "^4.20.0",
+    "turbo": "^2.10.0",
+    "typescript": "^5.9.0"
+  }
+}

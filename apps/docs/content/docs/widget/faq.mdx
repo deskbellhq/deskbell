@@ -1,0 +1,76 @@
+---
+title: Widget FAQ
+sidebarTitle: FAQ
+description: Answers to the questions that come up when embedding the widget, from the origin allowlist and single-page apps to content security policies and serving the script from a CDN.
+updated: 2026-09-21
+---
+
+<Accordions>
+<Accordion title="The widget shows an error on my site but works in the dashboard">
+
+The origin allowlist. The dashboard's own origin is always allowed; every
+other origin has to be listed on **Settings › Install**, with the exact
+scheme and port. In production a project with an empty allowlist refuses
+every request. The Install page lists the origins the widget has been seen
+on, which is the string to add.
+
+</Accordion>
+<Accordion title="Can I serve deskbell.js from a CDN?">
+
+No. The script derives the API origin from its own `src`, so a copy served
+from a CDN would call the CDN. Bundle `@deskbell/widget` from npm instead and
+set `api-url` on the element; that is the supported way to serve the code from
+somewhere other than your Deskbell instance.
+
+</Accordion>
+<Accordion title="How do I show the widget on some routes only?">
+
+Put `data-render-on-load="false"` on the script tag, then call
+`deskbell("mount")` on the routes that want it and `deskbell("unmount")` on
+the way out. The session id lives in `localStorage`, so the visitor's threads
+carry across routes. [JavaScript API](/widget/javascript-api#lifecycle).
+
+</Accordion>
+<Accordion title="Does it work with a strict Content Security Policy?">
+
+The widget renders into a shadow root and injects its stylesheet as a
+`<style>` element inside it, so a policy that forbids inline styles blocks
+its styling. Allow `style-src` for the widget's origin, or a nonce or hash
+for the injected sheet, and `connect-src` for your Deskbell origin so the
+answer stream can connect.
+
+</Accordion>
+<Accordion title="Can two widgets share a page?">
+
+The loader mounts one element and stands down when a `<deskbell-widget>`
+already exists. Placing two elements yourself works, each with its own project
+key. `deskbell()` commands go to every element on the page, and
+`deskbell("unmount")` removes them all.
+
+</Accordion>
+<Accordion title="Why is the project key visible in my page source?">
+
+Because it is not a secret. It identifies the project; origin binding, the
+per-IP and per-project rate limits and the daily token budget are what stop
+someone else spending your model credits. [Security](/manage/security)
+explains each guard.
+
+</Accordion>
+<Accordion title="Can I put a conversation list beside the open thread?">
+
+Yes, with `history-layout="sidebar"`, which shows the visitor's conversations
+in a rail beside the thread. A layout that CSS alone cannot reach is the older
+list-behind-a-back-button view shown at the same time as the thread; the
+widget renders one or the other.
+
+</Accordion>
+<Accordion title="How do I pass who the visitor is?">
+
+Give the element a `getAuthToken` function that returns the visitor's bearer
+token from your identity provider, and configure the issuer on the project.
+[Visitor identity](/widget/identity) covers the token, what is verified and
+who owns a conversation. For where on your site a conversation starts, use
+`context` and `scope-key`, which need no sign-in.
+
+</Accordion>
+</Accordions>

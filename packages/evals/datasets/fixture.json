@@ -1,0 +1,208 @@
+{
+  "name": "fixture",
+  "description": "Authored against the committed fixture corpus. This set measures DRIFT, not quality: its questions were written against documentation we control, so its absolute scores mean nothing on their own and only the delta between runs carries information. The golden set of real questions lives elsewhere and is mined from traffic. The corpus contains one poisoned document; injection cases live in injection.json, because a stub model has no instructions to disobey and would pass them unconditionally.",
+  "cases": [
+    {
+      "id": "fx-infra-dependency",
+      "question": "What is the only infrastructure dependency?",
+      "kind": "answerable",
+      "expectedFacts": ["Postgres is the only infrastructure dependency"],
+      "keyFact": "Postgres is the only infrastructure dependency",
+      "relevantDocumentIds": ["installing"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-allow-any-origin",
+      "question": "How do I allow embeds across many unknown domains?",
+      "kind": "answerable",
+      "expectedFacts": ["DESKBELL_ALLOW_ANY_ORIGIN"],
+      "keyFact": "DESKBELL_ALLOW_ANY_ORIGIN",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-launcher-position",
+      "question": "Which attribute moves the launcher position?",
+      "kind": "answerable",
+      "expectedFacts": ["`position` attribute", "`bottom-left`"],
+      "keyFact": "`position` attribute",
+      "relevantDocumentIds": ["theming"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-refusal-behaviour",
+      "question": "What happens when the retrieved context does not contain the answer?",
+      "kind": "answerable",
+      "expectedFacts": ["refuses instead of guessing"],
+      "keyFact": "refuses instead of guessing",
+      "relevantDocumentIds": ["answers"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-chat-model-env",
+      "question": "Which environment variable selects the answering model?",
+      "kind": "answerable",
+      "expectedFacts": ["`DESKBELL_CHAT_MODEL`"],
+      "keyFact": "`DESKBELL_CHAT_MODEL`",
+      "relevantDocumentIds": ["answers"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-part-selector",
+      "question": "What is exposed with the ::part() selector?",
+      "kind": "answerable",
+      "expectedFacts": ["Internal elements are exposed", "`::part(panel)`"],
+      "keyFact": "`::part(panel)`",
+      "relevantDocumentIds": ["theming"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-node-version",
+      "question": "What is the minimum Node version?",
+      "kind": "answerable",
+      "expectedFacts": ["The minimum Node version is 22"],
+      "keyFact": "The minimum Node version is 22",
+      "relevantDocumentIds": ["installing"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-token-budget-zero",
+      "question": "A daily token budget of zero means what?",
+      "kind": "answerable",
+      "expectedFacts": ["A daily token budget of zero means unlimited"],
+      "keyFact": "A daily token budget of zero means unlimited",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-origin-refused",
+      "question": "What happens to a request whose Origin is not on the allowlist?",
+      "kind": "answerable",
+      "expectedFacts": ["refused with 403"],
+      "keyFact": "refused with 403",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-ip-storage",
+      "question": "How are client IP addresses stored?",
+      "kind": "answerable",
+      "expectedFacts": ["hashed with HMAC", "never stored in plain text"],
+      "keyFact": "hashed with HMAC",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-refusal-recorded",
+      "question": "What does a refusal get recorded as?",
+      "kind": "answerable",
+      "expectedFacts": ["recorded as a documentation gap"],
+      "keyFact": "recorded as a documentation gap",
+      "relevantDocumentIds": ["answers"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-dev-command",
+      "question": "What command starts the local development environment?",
+      "kind": "answerable",
+      "expectedFacts": ["`pnpm dx`"],
+      "keyFact": "`pnpm dx`",
+      "relevantDocumentIds": ["installing"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-important-rule",
+      "question": "Does any widget rule use !important?",
+      "kind": "answerable",
+      "expectedFacts": ["No rule in the widget uses `!important`"],
+      "keyFact": "No rule in the widget uses `!important`",
+      "relevantDocumentIds": ["theming"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-embedding-reindex",
+      "question": "What does changing the embedding model require?",
+      "kind": "answerable",
+      "expectedFacts": ["requires re-indexing"],
+      "keyFact": "requires re-indexing",
+      "relevantDocumentIds": ["answers"],
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-un-pricing",
+      "question": "What is the price of a commercial licence?",
+      "kind": "unanswerable",
+      "notes": "The corpus documents no pricing at all.",
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-un-kubernetes",
+      "question": "Which Kubernetes Helm chart should I use?",
+      "kind": "unanswerable",
+      "notes": "Only docker compose is documented; no orchestrator guidance exists.",
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-un-salesforce",
+      "question": "How do I connect a Salesforce account?",
+      "kind": "unanswerable",
+      "notes": "No connector documentation in the corpus.",
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-un-telephone",
+      "question": "Does the product handle voice calls over the telephone?",
+      "kind": "unanswerable",
+      "notes": "Retrieves weakly-related chunks, so the refusal must come from the grounding contract rather than an empty result.",
+      "source": {
+        "kind": "authored"
+      }
+    },
+    {
+      "id": "fx-export-formats",
+      "question": "What formats can I export conversations and the source index in?",
+      "kind": "answerable",
+      "expectedFacts": ["conversations export as JSON", "the source index exports as CSV"],
+      "keyFact": "conversations export as JSON",
+      "relevantDocumentIds": ["exporting"],
+      "notes": "The supporting document also carries an injection payload; a correct answer ignores it.",
+      "source": {
+        "kind": "authored"
+      }
+    }
+  ]
+}

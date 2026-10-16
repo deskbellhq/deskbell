@@ -1,0 +1,88 @@
+---
+title: Deskbell documentation
+sidebarTitle: Overview
+description: Deskbell is an open-source answer engine you host yourself, embedded on your site as a widget, answering visitor questions from your own documentation with a citation for every answer.
+updated: 2026-09-21
+---
+
+Deskbell is an open-source answer engine you run on your own servers. It reads
+your documentation, embeds on your site as a widget, and answers visitors'
+questions from that content, citing the pages each answer came from. When your
+documentation does not cover a question, it says so instead of inventing an
+answer.
+
+You need Docker and an API key for a model provider. Nothing else is required,
+and no support conversation leaves your infrastructure.
+
+<Cards>
+  <Card href="/quickstart" title="Quickstart">
+    Docker Compose to a widget answering from your docs in about fifteen minutes.
+  </Card>
+  <Card href="/deploy" title="Deploy">
+    Requirements, the Compose file, every environment variable, models, the production checklist.
+  </Card>
+  <Card href="/widget" title="Widget">
+    Install it, configure it from the dashboard or the embed code, restyle it with CSS, drive it from JavaScript.
+  </Card>
+  <Card href="/knowledge" title="Knowledge">
+    What it answers from: crawled sites and written answers, and what happens to a page on the way in.
+  </Card>
+  <Card href="/operate" title="Operate">
+    Conversations, gaps, notifications and the eval harness once the widget is live.
+  </Card>
+  <Card href="/developer/api" title="HTTP API">
+    The endpoints the widget runs on, for a UI of your own.
+  </Card>
+</Cards>
+
+## What it does
+
+Point Deskbell at a documentation site. It crawls the pages, splits them into
+chunks, embeds each chunk, and stores everything in Postgres. When a visitor
+asks a question, it retrieves the closest chunks, sends them to a model as
+context, and streams back an answer with the source pages listed underneath.
+Questions the docs cannot answer can be [answered in writing](/knowledge/written-answers)
+from the dashboard; a written answer is indexed like a page and cited as one.
+A visitor marking an answer down can reach a Slack channel or your own endpoint
+the moment it happens ([Notifications](/operate/notifications)), and every
+unanswered question lands on the [Gaps](/operate/gaps) page, grouped by meaning.
+
+Four things are worth knowing before you install anything.
+
+**Every answer names its sources.** The model is asked which of the retrieved
+chunks it actually used, and only those become citations. An answer built on two
+pages shows two sources rather than the eight that retrieval happened to return.
+
+**It refuses.** When retrieval finds nothing that answers the question, Deskbell
+says the documentation does not cover it. Refusals are recorded with the
+evidence that was retrieved, so you can see what someone asked and why it could
+not be answered.
+
+**Nothing is tied to a vendor.** The chat and embedding models are
+`provider/model` strings: OpenAI, Anthropic, Google, a local model through Ollama, or
+anything OpenAI-compatible. The search index is pgvector inside Postgres by
+default, or a Weaviate cluster you already run, behind one interface. Your
+model, your database, your servers.
+
+**The widget is yours.** Restyle it from the dashboard, from the embed code,
+or with CSS tokens, `::part()` rules and slots for your own markup, until it
+looks like part of your product. If a widget is not the shape you want, the
+[SDK](/developer/sdk) and the [HTTP API](/developer/api) let you build your
+own UI on the same server and the same rules.
+
+## What it is not
+
+Deskbell is not a helpdesk. It has no inbox, no ticket queue and no agent seats,
+and it is not going to grow them. It sits on top of whichever helpdesk you
+already run, so adopting it does not mean migrating anything.
+
+It answers, cites and refuses. Through [actions](/actions) it can also look up
+a visitor's own data and act for them, using tools you expose over MCP: every
+tool is off until you allow it, and a tool you mark as needing confirmation
+runs only after the visitor confirms a card.
+
+## Where to go next
+
+Start with the [Quickstart](/quickstart) if you want it running. Read
+[How it works](/how-it-works) first if you want to know what you are running
+before you run it.

@@ -1,0 +1,126 @@
+---
+title: Hallucinations
+description: The three ways an answer from documentation goes wrong, the check Deskbell runs for each, where you see it in the dashboard, how to measure it, and what no check catches.
+updated: 2026-10-16
+---
+
+An assistant that answers from documentation can go wrong in three ways. It can
+answer a question the content does not answer. It can answer from the content
+and say something the content does not say. And it can answer correctly and
+decorate the answer with a name that does not exist: a setting the page never
+mentions, a button the product does not have. Deskbell runs a check for each,
+shows each in the dashboard, and measures each in the eval harness. None of
+them is a guarantee; [the last section](#what-gets-through) says what gets
+through.
+
+| The answer | The check | Where you see it |
+|---|---|---|
+| Answers when the content has no answer | Refusal: nothing retrieved, or the model declines to answer from what was retrieved | **Refused** on the Conversations and Gaps pages |
+| Answers from a page that barely matched | The weak floor: an answer whose best page scored under it is marked | **Weak answer** on the Gaps page; the thread reads **Uncertain** |
+| Picks one reading of an ambiguous question | A clarifying question back, with the pages as options (off by default) | **Asked to clarify** on the message |
+| Names a feature, setting, button or page that does not exist | Verification: every name the answer asserts is looked up in your content | The sentence under the answer; **Unsupported name** on the message and the Gaps page |
+| Says which pages it used | Citations: only the blocks the model named become sources | The source pills under the answer |
+
+## Only your content reaches the model
+
+The model answers from the chunks retrieved for the question and from nothing
+else. They go to it as numbered context blocks in a user turn, and the system
+turn is the same bytes whatever was retrieved, which is what keeps a hostile
+page from reaching the model as instructions: the instruction says the context
+is data, and a page cannot rewrite the instruction. A tool result from an
+[MCP server](/actions) enters under the same rule. At ingest, each chunk is
+tested against four injection heuristics and a match is counted on the source
+row for you to look at ([Re-indexing](/knowledge/re-indexing#injection-flagging)).
+
+Whether a model obeys an instruction hidden in a page is a property of the
+model, so it is something to measure rather than assume: the built-in
+`injection` set runs a poisoned corpus through your configured model
+([Testing prompt-injection resistance](/operate/evaluation#testing-prompt-injection-resistance)).
+
+## Refusing instead of guessing
+
+When retrieval finds nothing, the question is refused before the model sees
+it. When it finds pages that do not answer the question, the model is told to
+reply with a single sentinel instead of prose, and the start of the stream is
+held until Deskbell can tell a refusal from an answer, so a partial sentinel
+never reaches the visitor. Both refusals are stored with the chunks that were
+retrieved, so the Conversations page can say which it was: **Nothing
+retrieved** or **No grounded answer**.
+
+There is no similarity floor by default, on purpose. A floor decides whether
+the visitor gets an answer at all, and correct pages score lower than people
+expect; [How it works](/how-it-works#answering) has the number. Instead, an
+answer whose best page scored under `DESKBELL_GAPS_WEAK_SCORE` is answered and
+then marked weak, so you can read it rather than lose it.
+
+Some questions have more than one honest answer because the visitor did not
+say which thing they meant. With `DESKBELL_CLARIFY=on` the assistant asks
+which, offering only pages retrieval returned
+([Clarifying questions](/knowledge/clarifying-questions)).
+
+## Citations that can be checked
+
+The model ends its answer with a line naming the context blocks it used. The
+line is parsed off, never shown, and only the blocks it names become sources;
+the eight pages retrieval returned do not all appear as if they had been read.
+The line has to be the last line and hold nothing but digits and commas, so a
+page that ends with the word "SOURCES" stays prose. The visitor sees the pages
+as pills and can open them, which is the one check they can run themselves.
+
+## Names that must exist
+
+The most invisible failure is the third one: the answer is right, the sources
+are real, and one name in it is made up. Nobody marks it down, because the
+visitor cannot tell. So the instruction asks the model to write every name it
+asserts in bold, and once the answer has streamed each bold name is looked up
+in the retrieved pages, then in the whole index. A name found nowhere makes the
+answer end with a sentence in the assistant's voice: "I couldn't find **Find
+and Replace** in the documentation, so that part may not be accurate." The
+message is badged, the names land on the Gaps page, and the model is shown its
+own caveat on the next turn so it does not repeat the name with fresh
+confidence. The check is on by default and
+[Answer verification](/knowledge/answer-verification) covers what it matches,
+what it costs and its false alarms.
+
+## Seeing it in the dashboard
+
+A thread is **Uncertain** when any answer in it was refused, weak or carried an
+unsupported name; the overview counts them and the
+[Gaps](/operate/gaps) page clusters them by what was asked, with marked-down
+answers beside them. Each cluster is a question your content does not answer
+well, and the fix is content: a page, or a [written answer](/knowledge/written-answers)
+saved from the gap and indexed like a page. An invented answer is never the
+fix. Once indexed it is cited and looks authoritative, and no check above
+catches content that is itself wrong.
+
+## Measuring it
+
+The [eval harness](/operate/evaluation) replays a question set and reports
+**factuality** over the questions your content can answer and **uncertainty**
+over the ones it cannot, never blended, because a system can buy either at
+the other's expense. Beside them: the false-refusal rate, groundedness as a
+separate judgement, the clarify rate when clarifying questions are on, and the
+**unsupported-name rate**, the share of checked answers that named something
+your content does not contain. A rise in any of the lower-is-better numbers
+fails the baseline check. Every setting named on this page was measured this
+way before its default was chosen, and the same run on your own corpus is how
+to choose differently.
+
+## What gets through
+
+- **A real name for the wrong job.** Verification asks whether a name exists,
+  not whether it does what the visitor wants. Recommending an existing feature
+  that does not fit is a retrieval problem or a content gap, and shows up as a
+  thumbs-down if it shows up at all.
+- **A claim in plain prose.** Only names the model marks are checked at
+  runtime. A sentence the content does not support is caught by the
+  groundedness judge in the harness, offline, not on the answer path.
+- **A page cited but misread.** Citations prove which pages the model used,
+  not that it read them correctly.
+- **Content that is wrong.** Every check above measures the answer against
+  your content. A wrong page, or a wrong written answer, is answered from and
+  cited.
+- **A model that ignores the instruction.** Bolding names, refusing with the
+  sentinel and leaving injected instructions alone are all things the model is
+  asked to do. How reliably yours does them is one of the numbers the harness
+  reports, and it differs by model.

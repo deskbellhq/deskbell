@@ -1,0 +1,35 @@
+---
+title: Developer resources
+sidebarTitle: Overview
+description: The HTTP API the widget runs on, the typed SDK that wraps it, and where to start when you want to change Deskbell itself or need to know what licence a piece of it carries.
+updated: 2026-09-21
+---
+
+Everything the widget does, it does through a small public HTTP API on your
+own Deskbell instance. That API is documented here, along with the SDK that
+wraps it and the pages for people who want to change the software rather than
+run it.
+
+| You want to | Page |
+|---|---|
+| Call the endpoints directly, or build a UI in another language | [HTTP API](/developer/api) |
+| Build a UI in JavaScript on the same server and rules as the widget | [SDK](/developer/sdk) |
+| Set up the repository, run the tests, send a change | [Contributing](/developer/contributing) |
+| Know which licence applies to the part you are touching | [Licensing](/developer/licensing) |
+
+## Three facts the API rests on
+
+**The project key is public.** It ships in your page source. What protects the
+endpoints is origin binding, rate limits and the project's daily token budget,
+all described in [Security](/manage/security). A caller needs a browser-like
+`User-Agent`, an allowlisted `Origin` on the write endpoints, and patience for
+`429`.
+
+**A session is possession.** Every request names a `sessionId` the client
+made up and kept. A conversation belongs to the session that created it, and
+to the signed-in visitor when the project verifies
+[identity](/widget/identity). There is no other credential.
+
+**Answers stream.** `POST /api/v1/ask` answers as server-sent events: tokens,
+then citations or a refusal, then `done` with the ids you need for feedback.
+A heartbeat comment keeps the connection open through a slow answer.

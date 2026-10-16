@@ -1,0 +1,90 @@
+---
+title: Knowledge FAQ
+sidebarTitle: FAQ
+description: Answers to the questions that come up when adding sources, from a crawl that stops early to how a written answer is ranked against the page that contradicts it.
+updated: 2026-09-22
+---
+
+<Accordions>
+<Accordion title="How many pages can one source hold?">
+
+The dashboard form asks for a page limit and defaults to 50 for a first
+crawl; the ceiling is 10,000 per source. A large site is better added as
+several sources with different start URLs, which also lets you sync the part
+that changed.
+
+</Accordion>
+<Accordion title="Why did the crawl find fewer pages than the site has?">
+
+The crawler stops at `maxPages`, skips paths that `robots.txt` disallows for
+`User-agent: *`, follows a sitemap index one level deep, and never leaves the
+start URL's origin. Pages served only after JavaScript runs are fetched as
+their initial HTML. [Website](/knowledge/website#how-it-finds-pages) lists the
+rules.
+
+</Accordion>
+<Accordion title="Can I crawl a site behind a login?">
+
+No. The crawler sends no credentials. Documentation behind authentication is
+best exported to a public or internal static site the worker can reach.
+
+</Accordion>
+<Accordion title="Does Sync re-embed everything?">
+
+No. Each page's content is hashed; only pages whose hash changed, and new
+pages, are re-chunked and re-embedded. A sync of an unchanged site costs a
+crawl and no model calls.
+
+</Accordion>
+<Accordion title="What are the flagged chunks on a source row?">
+
+Chunks that matched one of four injection heuristics at ingest: instruction
+overrides, chat role markers, text addressed to a model, or system-prompt
+probes. They are counted for you to look at and still answer; nothing is
+dropped silently. [Re-indexing](/knowledge/re-indexing#injection-flagging)
+describes the checks.
+
+</Accordion>
+<Accordion title="A page and a written answer disagree. Which wins?">
+
+Whichever matches the question better. Written answers are indexed like pages
+and get no boost, so a page that phrases the question the way the visitor did
+can outrank the answer written for it. [Written answers](/knowledge/written-answers#how-it-is-indexed-and-ranked)
+explains the ranking and when to fix the page instead.
+
+</Accordion>
+<Accordion title="Why did the widget ask a question back instead of answering?">
+
+Because `DESKBELL_CLARIFY` is on and the pages retrieved for that question
+answer it in more than one way — typically a question with a pronoun and no
+earlier turn to resolve it against, or a term two products or versions share.
+The options are titles of pages that were retrieved, and the visitor's pick
+becomes the next question.
+
+If it happens on questions that have one obvious reading, the pages involved
+probably share a title or an opening paragraph.
+[Clarifying questions](/knowledge/clarifying-questions) has the rule it
+follows, what it costs and how to measure it.
+
+</Accordion>
+<Accordion title="Why does an answer end with 'I couldn't find … in the documentation'?">
+
+Because the answer named a feature, setting, button or page, in bold, that the
+check could not find in the pages retrieved for the question or anywhere in
+the index. The sentence is the assistant admitting it; the message carries an
+**Unsupported name** badge on the Conversations page and the names land on the
+Gaps page. If the name does exist, your pages write it differently: a plural,
+a hyphen, a range. [Answer verification](/knowledge/answer-verification) says
+what is matched and how to measure the false alarms; the `unsupportedNote` copy
+key rewords the sentence, and `DESKBELL_VERIFY=off` turns the check off.
+
+</Accordion>
+<Accordion title="Where do the vectors live?">
+
+In Postgres, in the `chunks` table, through pgvector. With
+`DESKBELL_VECTOR_STORE=weaviate` they live in a Weaviate collection instead and
+the row records which store holds each one. [Vector store](/deploy/vector-store)
+covers both.
+
+</Accordion>
+</Accordions>

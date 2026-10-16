@@ -1,0 +1,72 @@
+---
+title: Install in a Next.js app
+sidebarTitle: Next.js
+description: Load the Deskbell widget once in a Next.js App Router layout with next/script so it stays mounted across client-side navigation, or use the React package.
+updated: 2026-09-21
+---
+
+Load the script once, in the root layout, with `next/script`. The layout
+persists across client-side navigations, so the widget mounts once and keeps
+the visitor's conversation open while they move between pages.
+
+```tsx title="app/layout.tsx"
+import Script from "next/script";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Script
+          src="https://your-deskbell.example.com/deskbell.js"
+          data-project-key="pk_live_…"
+          strategy="afterInteractive"
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+`next/script` passes `data-` attributes through unchanged, so every
+[option](/widget/configuration) works here as it does on a plain tag.
+`afterInteractive` loads the widget after hydration; `lazyOnload` waits for
+idle time if the widget is not part of the first paint you care about.
+
+## Pages Router
+
+The same `<Script>` goes in `pages/_app.tsx`, inside the component's returned
+tree, next to `<Component {...pageProps} />`.
+
+## Showing it on some routes only
+
+Add `data-render-on-load="false"` to the `<Script>` and call
+`deskbell("mount")` from a client component on the routes that want it, with
+`deskbell("unmount")` on the way out. The session id lives in `localStorage`,
+so the visitor's threads carry across mounts.
+[JavaScript API](/widget/javascript-api#lifecycle) has the calls.
+
+## The React package
+
+`@deskbell/widget-react` wraps the same element as a component for codebases
+that would rather render it than load a script:
+
+```tsx
+import { Deskbell } from "@deskbell/widget-react";
+
+<Deskbell projectKey="pk_live_…" apiUrl="https://your-deskbell.example.com" />;
+```
+
+It is a client component. Rendering, styling and behaviour are identical to
+the script tag; `apiUrl` is required because a package knows nothing about
+your server. [Install](/widget/install#react) covers the props.
+
+## Before it goes public
+
+Add each origin the app is served from to the allowlist on
+**Settings › Install**: the production domain and, if you want the widget in
+development, `http://localhost:3000`.
+
+Verified with Next.js 16 (App Router, `create-next-app` defaults) and Chrome:
+the widget mounted from the layout, sent its beacon, and answered with cited
+pages.

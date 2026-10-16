@@ -1,0 +1,74 @@
+---
+title: Upgrading and backups
+description: How to move a running instance to a newer version, what the migrate service does on the way up, when a re-index is part of an upgrade, and what to back up.
+updated: 2026-09-21
+---
+
+An upgrade is a rebuild of the two images and a restart. The `migrate` service
+runs the schema migrations before `web` and `worker` start, so the schema is
+never behind the code that reads it.
+
+## Upgrading under Compose
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+`docker compose up` runs `migrate` again on every start. It is a one-shot
+service: it applies migrations that have not run, re-runs the idempotent seed,
+and exits. `web` and `worker` wait for it to finish successfully, so a failed
+migration keeps the old processes down rather than starting new code against an
+old schema. Read `docker compose logs migrate` in that case.
+
+The data lives in the `deskbell-pgdata` named volume, which `docker compose
+down` keeps and `docker compose down -v` deletes.
+
+## Upgrading from source
+
+```bash
+git pull
+pnpm install
+pnpm db:migrate
+```
+
+Then restart `web` and `worker`. A dev server that keeps running across a
+migration serves a stale schema; restart it.
+
+## When an upgrade needs a re-index
+
+Migrations change tables. Two kinds of change also change what is stored in the
+vector index, and the schema cannot do those for you:
+
+- **A new embedding model or dimension.** The Sources page shows a notice with
+  the count of chunks embedded by a different model and a **Re-embed** button.
+  [Re-indexing](/knowledge/re-indexing) describes the job; it is resumable and
+  pauses ingestion while it runs.
+- **A different vector store.** The same notice and button move vectors between
+  pgvector and Weaviate. [Vector store](/deploy/vector-store#switch-vector-stores)
+  has the procedure.
+
+Neither happens on its own, so an upgrade that changes a default embedding model
+leaves the old vectors in place until you press the button.
+
+## What to back up
+
+Postgres is the only state. Conversations, sources, documents, chunks and their
+vectors, members, settings and the job queue are all rows in the one database.
+
+```bash
+docker compose exec db pg_dump -U deskbell deskbell > deskbell.sql
+```
+
+Restore into an empty database with `psql`, then start the stack; `migrate`
+brings the schema forward if the dump is older than the code.
+
+If `DESKBELL_VECTOR_STORE=weaviate`, the vectors live in the Weaviate
+collection instead. Back up the collection with Weaviate's own tooling, or
+accept that a restore of Postgres alone leaves rows whose vectors are missing;
+`pnpm vector-store:prune` reports those and **Re-embed** on the Sources page
+rebuilds them from the stored chunk text.
+
+Nothing is written to the filesystem. The local reranker's model weights are
+downloaded into `node_modules` on first use and download again after a rebuild.

@@ -1,0 +1,137 @@
+---
+title: Written answers
+description: Answers you write yourself, indexed like pages and cited as written answers. When to write one, how it is ranked, what the visitor sees, and how to keep it from disagreeing with your docs.
+updated: 2026-09-18
+---
+
+The assistant answers from two kinds of source: the websites you crawl and
+the answers you write. A written answer is a question and its answer, typed
+into the dashboard by an editor. It is stored as a document under a
+**Written answers** source that every project gets the first time one is
+saved, and from there it goes through the same pipeline as a crawled page:
+chunked, embedded, retrieved by similarity, cited by the same rule. Retrieval
+does not know the difference; the citation does, and says so.
+
+## Writing one
+
+Two doors, one form.
+
+**From a gap.** Open a row's details on the [Gaps](/operate/gaps) page and choose
+**Write an answer** in the drawer's footer, or pick **Write an answer** from
+the row's menu, which opens the drawer straight into the form. The question is
+filled in from the cluster's label, and the cluster's analysis, when it has
+one, sits in the same drawer as the thing to write from. Saving marks the
+cluster **Answered** and links it to the answer; the row leaves the open view
+and the Resolved view lists it. If the question comes up again and the answer
+does not carry it, the cluster reopens by itself, like any resolved gap, shows
+**Recurring**, and the drawer offers **Edit answer**.
+
+**From Sources.** The **Written answers** card on the Sources page has the
+count, the indexing state and the last time one was written, and a **Write an
+answer** button. **Manage** opens **Sources → Written answers**, which lists
+every answer in the project with the gap it was written for and lets you add,
+edit and delete them. Use it for questions that never showed up as a gap but
+that you want answered a certain way.
+
+Writing, editing and deleting need the editor role, the same as resolving a
+gap or syncing a source.
+
+## How it is indexed and ranked
+
+The stored text is the question as a heading followed by the answer. The
+chunker keeps the heading with the first chunk and prefixes it to the rest, so
+the question is inside every chunk's embedded text. That is what makes a
+written answer findable: a visitor's phrasing lands near it by similarity, the
+way it would land near a page whose title is the question.
+
+A written answer competes with your pages on equal terms. Nothing ranks it
+above them, and nothing should: a boost would let a stale answer beat a page
+that has since been written. If a crawled page is a closer match to the
+phrasing, the page wins, and the fix is to write the question the way visitors
+ask it, not to write the answer louder.
+
+The row's status shows **Indexing…** until the worker has embedded every
+chunk, then **Indexed**. **Re-index** on the Sources card re-chunks and
+re-embeds every answer in the source, which is what to do after changing the
+chunk size or the embedding model.
+
+## What the visitor sees
+
+A cited written answer shows in the widget's sources row as a pill with a pen
+glyph, the question, and a second line reading "Written answer". A cited page
+shows its title alone. The pill is not a link: there is no page behind it.
+
+The second line is the `writtenAnswer` copy key, so it can be renamed or
+translated like any other string, and it carries the `citation-label` part for
+styling. The pill itself carries `citation-kind-corrections`, the way every
+pill carries the kind of source it came from; see
+[Customization](/widget/configuration).
+
+In the dashboard, the same label appears wherever a citation is listed: the
+conversation view, the gap drawer's evidence, and the evidence columns of the
+gaps export, where a page is its URL and a written answer is
+`written answer: {question}`.
+
+## When to write one
+
+- **A patch while the page is written.** A gap shows visitors asking about
+  something the docs will cover next month. Answer it now; delete the answer
+  when the page lands.
+- **Something that does not belong on a page.** A pricing exception, a
+  workaround for one customer's setup, a policy you do not want to publish
+  but are happy to say when asked.
+- **A precise, controlled wording.** A question where the docs are right but
+  scattered, and one exact paragraph would serve better than three retrieved
+  chunks.
+
+## When not to
+
+- **Information that changes often.** A written answer is not maintained by a
+  crawl. Prices, limits and version numbers drift; put them on a page and let
+  the crawler keep them fresh.
+- **Product behaviour that belongs in the docs.** If a visitor should be able
+  to find it by reading, write the page. A written answer is invisible to
+  anyone who does not ask.
+- **Many near-duplicate questions.** Ten answers for ten phrasings of one
+  need are ten chunks competing with each other and with your pages. Write
+  one page, or one answer with the question the way most visitors ask it.
+- **Anything the docs already say.** Two sources that answer the same
+  question can disagree, and retrieval will not prefer the right one.
+
+## Recommendations
+
+- Write the question the way visitors ask it. The stored question is what the
+  visitor's phrasing is matched against; the Gaps page shows you the phrasings.
+- One question per answer. An answer that covers three questions is far from
+  all three.
+- Short and plain. Blank lines separate paragraphs; nothing is rendered as
+  markup. The model quotes and paraphrases it; it does not need to be prose
+  for a page.
+- Delete the answer once the page exists, so the two cannot disagree.
+- Review the Resolved view on the Gaps page monthly. It is the list of
+  everything answered by hand and by fix; anything there that now has a page
+  can go.
+- Treat **Recurring** as the signal. A cluster that reopens after a written
+  answer means the answer did not carry the next phrasing: widen the
+  question, or write the page.
+
+## Editing, re-indexing, deleting
+
+Editing an answer replaces its text and re-indexes it; the old chunks are
+gone as soon as the worker runs. Editing from a gap resolves the cluster
+again, since an edit after a reopen is you saying the fix is in now.
+
+Re-indexing every answer is the **Re-index** action on the Sources card. It
+is the same operation as a website sync and ends with the source **ready**.
+
+Deleting an answer removes it and its chunks. A gap it was written for keeps
+its status; the next occurrence of the question is what changes that.
+
+## Roles
+
+| Action | Role |
+|---|---|
+| Read the answers | Any member |
+| Write, edit, delete, re-index | Editor |
+
+The same bar as resolving a gap or syncing a source.

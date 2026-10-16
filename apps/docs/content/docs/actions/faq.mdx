@@ -1,0 +1,49 @@
+---
+title: FAQ
+description: Short answers on actions — what runs without asking, what the visitor can see, how failures show, and what an MCP server needs to work with Deskbell.
+updated: 2026-09-22
+---
+
+## Does anything run without me choosing it?
+
+No. Every discovered tool is off until an admin sets a policy, and the
+suggestion is *Allowed* only for tools the server marks read-only.
+
+## Can the visitor see what a tool returned?
+
+Anything a tool returns may end up in the answer. The model is told to use
+results as material and to cite them, but the text reaches the model and the
+model writes the answer. Attach a server the way you would give a support
+agent access to it, and use the identity token to scope what it returns.
+
+## What does a failed call look like?
+
+The step line says *Couldn't complete*, the model is told the call failed and
+answers without it, and the audit row records the error. A call that takes
+longer than the timeout counts as failed.
+
+## Can a tool call another tool?
+
+Within a turn the model may call several tools, up to the step limit. A tool
+that needs confirmation pauses the turn; after the decision the model may
+continue calling allowed tools.
+
+## What does my MCP server need?
+
+A remote endpoint over Streamable HTTP (or SSE), reachable from the Deskbell
+instance over `https`, a `tools/list` that describes each tool with a JSON
+Schema input, and either no credential, a bearer token or a header value.
+Annotate read-only tools with `readOnlyHint` so the suggested policy is right.
+To scope results to the visitor, verify the [identity token](/actions/visitor-identity).
+
+## Does the eval harness cover answers that used tools?
+
+The harness replays questions against the content; it declares no tools, so
+those runs are unchanged. Answers that used a tool are judged the way any
+answer is when they appear in real traffic and are exported as cases.
+
+## Where is the record?
+
+One row per attempted call in the `action_calls` table: input, output (cut
+at 16 000 characters), status, the visitor it ran for, the decision and its
+time, latency and error. The Conversations page shows the calls per answer.

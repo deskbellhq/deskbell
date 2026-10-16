@@ -1,0 +1,23 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "---Start---",
+    "index",
+    "quickstart",
+    "how-it-works",
+    "---Deploy---",
+    "...deploy",
+    "---Knowledge---",
+    "...knowledge",
+    "---Actions---",
+    "...actions",
+    "---Widget---",
+    "...widget",
+    "---Operate---",
+    "...operate",
+    "---Manage---",
+    "...manage",
+    "---Developer---",
+    "...developer"
+  ]
+}

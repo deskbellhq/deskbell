@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "allowed_sign_in_domains" jsonb DEFAULT '[]'::jsonb NOT NULL;

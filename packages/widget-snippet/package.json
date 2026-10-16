@@ -1,0 +1,26 @@
+{
+  "name": "@deskbell/widget-snippet",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./deskbell.js": "./dist/deskbell.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@deskbell/shared": "workspace:*",
+    "@deskbell/widget": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

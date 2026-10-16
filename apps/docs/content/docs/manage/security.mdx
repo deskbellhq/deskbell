@@ -1,0 +1,204 @@
+---
+title: Security
+description: The public widget endpoints are unauthenticated by design. Origin binding, rate limits and a spend ceiling are what protect you, not keeping the project key secret.
+updated: 2026-09-23
+---
+
+Deskbell's `/api/v1/*` endpoints are unauthenticated by design. The widget runs
+in your visitors' browsers and your project key ships in your page source. The
+key is not a secret and was never meant to be one. Origin binding, rate limits
+and a spend ceiling are what protect you.
+
+The **dashboard** is a separate security model: email + password sessions,
+described in [Dashboard authentication](#dashboard-authentication) below.
+
+## The endpoints
+
+| Endpoint | Cost | Guard |
+|---|---|---|
+| `POST /api/v1/ask` | A model call. This is the one that spends money | Full |
+| `GET /api/v1/config` | One indexed read | Read |
+| `POST /api/v1/conversations` | One indexed read | Read |
+| `POST /api/v1/conversations/messages` | One indexed read | Read |
+| `POST /api/v1/feedback` | One indexed write | Read |
+| `POST /api/v1/conversations/delete` | One indexed write | Read |
+| `POST /api/v1/conversations/rename` | One indexed write | Read |
+| `POST /api/v1/conversations/preview` | Two indexed reads | Read, plus the project's staff claim on the caller's token |
+| `POST /api/v1/ping` | One capped upsert | Beacon |
+
+## What runs on every request
+
+Checks are ordered cheapest first and stop at the first failure.
+
+<Steps>
+
+<Step>
+### Bot filter, 403
+
+Requests whose `User-Agent` identifies a crawler or a default HTTP-library
+client are refused. This is a courtesy filter that keeps honest bots out of your
+bill. It is not a security control, because anyone can send any `User-Agent`,
+which is what the rate limits are for.
+</Step>
+
+<Step>
+### Project lookup, 404
+
+Unknown keys are counted against the caller's rate limit before being refused,
+so guessing keys is not free.
+</Step>
+
+<Step>
+### Origin binding, 403
+
+The request's `Origin` must be in the project's allowlist, which you edit on the
+Install page. Four rules sit underneath that:
+
+A `POST` with no `Origin` is refused, because browsers always send one and its
+absence means the caller is not a browser. A `GET` with no `Origin` is allowed,
+because that is a same-origin request and a response carrying no CORS grant
+cannot be read cross-origin anyway. `Origin: null`, which is what a sandboxed
+iframe or a `file://` page sends, is always refused.
+
+This deployment's own origin is always allowed, listed or not. The dashboard
+runs the widget itself, and the allowlist exists to fence out other people's
+pages rather than your own. It appears in the allowlist on the Install page as a locked row
+so the rule is visible rather than implicit.
+
+That exemption matches on **host**, not on the full origin. Next populates
+`x-forwarded-proto` from its own socket when the client sends none, so behind a
+TLS-terminating proxy that does not forward `X-Forwarded-Proto` the server
+reports `http` while the browser sent `https`. Comparing schemes would lock the
+operator out of their own instance on an ordinary nginx configuration.
+`DESKBELL_PUBLIC_URL` is honoured too, for proxies that forward no usable host.
+
+The exemption grants nothing extra. A browser cannot forge `Origin`, and a
+script never had to: it can already claim any allowlisted origin. Rate limits
+and the token budget are the control against scripts.
+</Step>
+
+<Step>
+### Rate limits, 429 with `Retry-After`
+
+Fixed windows counted in Postgres: per IP per minute, per IP per hour, and per
+project per minute. Answers and cheap reads have separate allowances, so
+browsing conversation history never eats the allowance for asking a question.
+</Step>
+
+<Step>
+### Visitor identity, 401
+
+Only when the project names an issuer on the Visitor identity page. A bearer token is
+verified against the issuer's key set; a valid one makes the caller a known
+visitor who owns their own conversations, and an invalid one is refused even
+where anonymous access is allowed. A token grants nothing the checks above
+refused. See [Visitor identity](/widget/identity).
+</Step>
+
+<Step>
+### Daily token budget, 429
+
+`/ask` only. Set per project on the Install page, where `0` means unlimited. When
+the day's tokens are spent, the widget tells visitors to try again later instead
+of answering.
+</Step>
+
+<Step>
+### Concurrent streams, 429
+
+`/ask` only. One caller may hold only a few answer streams open at once.
+</Step>
+
+</Steps>
+
+`429` responses carry CORS headers and expose `Retry-After`, so the widget can
+tell "slow down" from "the server is down" and show the right message. Without
+those headers a browser reports a rate limit as a network error.
+
+## Privacy of visitor addresses
+
+Raw IP addresses are never stored. Rate-limit buckets are keyed by an HMAC of
+the address, using `DESKBELL_IP_SALT`.
+
+The client address is read from `x-forwarded-for` right to left, because the
+header grows by appending: the rightmost entry is the peer your own
+infrastructure saw and the leftmost is whatever the client claimed.
+`DESKBELL_TRUSTED_PROXIES` is how many of your own hops to skip.
+
+What is stored is the conversation itself, and for how long is the project's
+choice: [Data retention](/manage/data-retention) removes conversations older
+than a window you set.
+
+## Prompt injection
+
+Two layers, and neither is a guarantee.
+
+At answer time, retrieved context reaches the model in a user turn and the
+system turn is byte-identical whatever was retrieved. The system prompt states
+that context is data and never instructions.
+
+At ingest time, chunks matching instruction-shaped heuristics are flagged: text
+telling a reader to discard its instructions, chat role markers embedded in
+prose, imperatives addressed to a model reading the page, and probes for the
+system prompt. The count appears per source in the dashboard.
+
+Flagged chunks still answer. Flagging is visibility rather than filtering,
+because silently dropping a chunk deletes part of your documentation on a
+heuristic's say-so, with nothing to indicate why. On a real crawled corpus of 97
+chunks the heuristics produced no false positives.
+
+Injection resistance itself is a property of your model.
+`packages/evals/datasets/injection.json` replays payloads against your own
+deployment so you can measure yours rather than trusting a number measured
+elsewhere.
+
+## Scope
+
+**Distributed abuse.** Per-IP limits do not stop a botnet. The per-project rate
+limit and the daily token budget are the backstop, and they are what actually
+cap your bill.
+
+**Server-side callers.** Requiring `Origin` on POST means `/api/v1/ask` is
+called from browsers. The `Authorization: Bearer` header the guard reads
+carries an end user's token from the project's identity provider, not a server
+credential; a server holds no credential of its own for these endpoints.
+
+**Outbound notifications.** A [notification](/operate/notifications) target is a
+capability URL: whoever holds a Slack incoming-webhook URL can post to that
+channel, which is why the dashboard shows it masked and admins alone may set
+it. The generic webhook is signed so a receiver can check who sent it, but
+the request itself goes wherever the URL points; literal private addresses
+are refused, hostnames are not resolved before the request.
+
+**The install beacon.** `/api/v1/ping` does not enforce the allowlist. It exists
+to tell you that your widget is live on a host you have not allowlisted, and
+enforcing the allowlist there would silence exactly that message on a fresh
+install, when you most need it. It writes one capped diagnostic row per origin
+and returns `204`.
+
+## Dashboard authentication
+
+The dashboard is the other side of the instance and follows a different model:
+cookie sessions, an owner account, invitation-only membership and roles.
+[Authentication](/manage/authentication) and
+[Members and roles](/manage/members-and-roles) cover it. The two sides never
+mix: `/api/v1/*` reads no cookies and the dashboard reads no project key.
+
+## Limits
+
+Each is a choice with a reason, not an oversight:
+
+- Fixed windows allow up to a 2× burst across a window boundary. A sliding log
+  would cost a row per request, and a spend guard does not need that precision.
+- The budget can overshoot by one answer, because it is read before an answer
+  and written after it. Reserving tokens up front would mean reconciling every
+  abort and crash for no real gain.
+- The concurrency cap is per instance, because a stream is held open by one
+  process. Across replicas the per-IP rate limit is what holds.
+
+## Reporting a vulnerability
+
+Email **security@deskbell.dev** with the details and a reproduction if you
+have one. Please do not open a public issue for anything exploitable. We will
+acknowledge it, work a fix in private, and credit you in the release notes
+unless you would rather we did not.
