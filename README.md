@@ -15,13 +15,15 @@
   <a href="https://deskbell.dev/docs">Docs</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="./ROADMAP.md">Roadmap</a> ·
-  <a href="./CONTRIBUTING.md">Contributing</a>
+  <a href="./CONTRIBUTING.md">Contributing</a> ·
+  <a href="https://discord.gg/fJNPQ4ckE">Discord</a>
 </p>
 
 <p align="center">
   <a href="./LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0%20%2B%20MIT-2b6b4f" alt="License: AGPL-3.0 core, MIT embeddables"></a>
   <a href="https://github.com/deskbellhq/deskbell/actions/workflows/ci.yml"><img src="https://github.com/deskbellhq/deskbell/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://deskbell.dev/docs"><img src="https://img.shields.io/badge/docs-deskbell.dev-2b6b4f" alt="Documentation"></a>
+  <a href="https://discord.gg/fJNPQ4ckE"><img src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/node-%E2%89%A5%2022-339933?logo=node.js&logoColor=white" alt="Node 22 or later"></a>
 </p>
 

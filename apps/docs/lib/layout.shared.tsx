@@ -1,6 +1,6 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { BellMark } from "@/components/bell-mark";
-import { appName, repoHref, siteUrl } from "./shared";
+import { appName, discordUrl, repoHref, siteUrl } from "./shared";
 
 export function baseOptions(): BaseLayoutProps {
   const github = repoHref();
@@ -23,6 +23,7 @@ export function baseOptions(): BaseLayoutProps {
       { text: "Pricing", url: `${siteUrl}/pricing`, external: true },
       { text: "Security", url: `${siteUrl}/security`, external: true },
       { text: "Roadmap", url: `${siteUrl}/#roadmap`, external: true },
+      { text: "Discord", url: discordUrl, external: true },
     ],
   };
 }

@@ -9,6 +9,9 @@ export const appName = "Deskbell";
 export const siteUrl = "https://deskbell.dev";
 export const docsPrefix = "/docs";
 
+/** Community chat. Independent of the repository, so never gated by LAUNCH_MODE. */
+export const discordUrl = "https://discord.gg/fJNPQ4ckE";
+
 /**
  * Pages mount at the app root and `basePath` supplies `/docs`, so the loader's
  * base URL is `/`. Next prefixes links and assets on its own.
