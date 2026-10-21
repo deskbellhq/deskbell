@@ -34,6 +34,7 @@ Where v1 stands, area by area:
 | Several organisations on one instance (agencies: one install, many clients) | not built — Enterprise edition, see `packages/ee/FEATURES` |
 | Retrieval endpoint and an MCP server for the indexed docs (the matching chunks with their source pages, for agents and UIs you build) | not built — today the public API answers; it does not hand back the chunks |
 | Row-level security | not built (org scoping is enforced in query helpers — see D12) |
+| Voice (the same agent over speech: in the widget and on a phone line) | not built — v4, after Actions and Resolution; a new transport on the existing engine, not a rewrite, built on existing open-source voice stacks (D10) |
 
 ## The arc
 
@@ -74,10 +75,14 @@ specified before the features, not after — see
 
 ### v4 · Voice (post-v3, no date)
 
-The same Deskbell brain on a phone line, built on existing open-source voice stacks
-rather than infrastructure of our own, plus voice extensions to the eval harness. The
+**In scope.** The same Deskbell brain over speech: a push-to-talk mode in the widget
+(speak the question, hear the answer, citations still shown) and a phone line, both
+built on existing open-source voice stacks rather than infrastructure of our own ·
+voice runs in the eval harness (latency, interruption, transcript grounding). The
 engine is transport-neutral precisely so this is a new transport rather than a rewrite —
 see [D10](.ai/decisions/D10-transport-neutral-core.md).
+
+**Explicitly out.** Our own telephony or speech infrastructure.
 
 ## Current build order
 
