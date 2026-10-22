@@ -16,9 +16,10 @@ const usage = {
   outputTokens: { total: 5, text: 5, reasoning: 0 },
 };
 
-type Part = Parameters<typeof simulateReadableStream>[0]["chunks"][number];
+type StreamResult = Awaited<ReturnType<MockLanguageModelV4["doStream"]>>;
+type Part = StreamResult["stream"] extends ReadableStream<infer P> ? P : never;
 
-const stream = (chunks: Part[]) => ({ stream: simulateReadableStream({ chunks }) });
+const stream = (chunks: Part[]): StreamResult => ({ stream: simulateReadableStream({ chunks }) });
 
 const callStep = () =>
   stream([
