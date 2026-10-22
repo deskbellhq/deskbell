@@ -18,7 +18,7 @@ codes are:
 
 | Code | Cause | Body |
 |---|---|---|
-| `403` | The `User-Agent` looks like a crawler or an HTTP library (`curl/`, `python-requests`, `axios/`, `HeadlessChrome`…) | `{"error": …}` |
+| `403` | The `User-Agent` looks like a crawler or an HTTP library (`curl/`, `python-requests`, `axios/`, `HeadlessChrome`…) | `{"error": "Forbidden", "reason": "user_agent", "hint": …}` |
 | `404` | Unknown project key | `{"error": …}` |
 | `403` | The request's `Origin` is not on the project's allowlist | `{"error": "Origin not allowed", "reason": …}` |
 | `429` | A per-IP or per-project rate limit, the daily token budget, or the per-IP stream cap | `{"error": "Rate limited", "retryAfter": seconds}`, with `Retry-After` |

@@ -74,6 +74,28 @@ export interface GuardOptions {
 /** Errors before the origin is known can't safely echo it; `*` keeps them readable. */
 const OPEN = { "access-control-allow-origin": "*" };
 
+/**
+ * The bot filter's refusal. It names itself: the filter is a courtesy that
+ * keeps crawlers and default HTTP-library agents off the bill, and the one
+ * person who meets it on purpose — someone probing their own deployment from
+ * a terminal — should learn from the body what to change, not from a bare
+ * status that reads as "down". The hint says what the docs say; a filter
+ * anyone can pass by changing a header hides nothing by staying quiet.
+ */
+export function botRefused(): Response {
+  return Response.json(
+    {
+      error: "Forbidden",
+      reason: "user_agent",
+      hint:
+        "The User-Agent identifies a crawler or an HTTP library. The widget endpoints " +
+        "answer browsers: send a browser User-Agent and, on POST, an allowlisted Origin. " +
+        "See the API reference under Developer.",
+    },
+    { status: 403, headers: OPEN },
+  );
+}
+
 export async function guardWidgetRequest(
   request: Request,
   { projectKey, kind }: GuardOptions,
@@ -97,7 +119,7 @@ export async function guardWidgetRequest(
 
   // 1. Free, and the most common junk: agents that announce they are not browsers.
   if (isBotUserAgent(request.headers.get("user-agent"))) {
-    return { ok: false, response: Response.json({ error: "Forbidden" }, { status: 403 }) };
+    return { ok: false, response: botRefused() };
   }
 
   const ip = clientIp(request.headers, config.trustedProxies);
