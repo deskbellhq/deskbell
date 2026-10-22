@@ -151,6 +151,12 @@ non-reasoning chat model needs no change. If the remaining wait matters more
 than reasoning does, that is the lever: in the same probe a non-reasoning
 model answered all three questions with a first token in 0.8 to 1.7 seconds.
 
+Set `none` to switch reasoning off on a model that allows it, which is the
+fastest such a model gets. Not every model does: the older reasoning models
+reject the request with a 400, and the first question after the change shows
+that error. Deskbell passes the value through as it is and leaves the choice
+to the model, so check the provider's model page before setting it.
+
 ## Injection resistance varies by model
 
 The system prompt tells the model that retrieved context is data and never

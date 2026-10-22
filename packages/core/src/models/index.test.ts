@@ -105,14 +105,20 @@ describe("reasoning effort (DESKBELL_REASONING_EFFORT)", () => {
   });
 
   it("accepts every level, case-insensitively, and falls back on nonsense", () => {
-    for (const level of ["minimal", "low", "medium", "high", "provider"]) {
+    for (const level of ["none", "minimal", "low", "medium", "high", "provider"]) {
       expect(reasoningEffort({ DESKBELL_REASONING_EFFORT: level })).toBe(level);
       expect(reasoningEffort({ DESKBELL_REASONING_EFFORT: ` ${level.toUpperCase()} ` })).toBe(
         level,
       );
     }
     expect(reasoningEffort({ DESKBELL_REASONING_EFFORT: "max" })).toBe("low");
-    expect(reasoningEffort({ DESKBELL_REASONING_EFFORT: "none" })).toBe("low");
+    expect(reasoningEffort({ DESKBELL_REASONING_EFFORT: "off" })).toBe("low");
+  });
+
+  it("passes 'none' through: whether a model accepts it is the model's call", () => {
+    expect(reasoningProviderOptions("openai", "none")).toEqual({
+      openai: { reasoningEffort: "none" },
+    });
   });
 
   it("pins the effort for openai only, and sends nothing on 'provider'", () => {
@@ -126,7 +132,7 @@ describe("reasoning effort (DESKBELL_REASONING_EFFORT)", () => {
   });
 
   it("builds deps at every level for every wired chat provider", () => {
-    for (const level of ["minimal", "low", "medium", "high", "provider"]) {
+    for (const level of ["none", "minimal", "low", "medium", "high", "provider"]) {
       for (const chat of ["openai/gpt-5-mini", "anthropic/claude-opus-5", "ollama/llama3.3"]) {
         expect(() =>
           createEngineModelDeps({

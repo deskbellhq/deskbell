@@ -127,16 +127,22 @@ function ollama() {
  * decides. Today only `openai/*` has the concept; on other providers every
  * value is a no-op, and the OpenAI provider itself ignores it (with a warning)
  * for non-reasoning models, so a `gpt-4.1-mini` deployment needs no change.
- * "none" is deliberately not a level: reasoning models reject it outright.
+ *
+ * "none" switches reasoning off where the model allows it, which is the
+ * fastest a reasoning model gets. Whether a model allows it is the model's
+ * call, not ours: the newer ones accept it, the older ones reject the request
+ * with a 400, and an operator who sets it on a model that refuses sees that
+ * error on the first question. Deskbell passes it through rather than
+ * second-guessing the provider's model list.
  */
-export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "provider";
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "provider";
 const DEFAULT_REASONING_EFFORT: ReasoningEffort = "low";
 
 export function reasoningEffort(env: NodeJS.ProcessEnv = process.env): ReasoningEffort {
   const raw = env.DESKBELL_REASONING_EFFORT?.trim().toLowerCase();
   if (!raw) return DEFAULT_REASONING_EFFORT;
-  if (raw === "minimal" || raw === "low" || raw === "medium" || raw === "high") return raw;
-  if (raw === "provider") return raw;
+  if (raw === "none" || raw === "minimal" || raw === "low") return raw;
+  if (raw === "medium" || raw === "high" || raw === "provider") return raw;
   console.warn(
     `[models] unknown DESKBELL_REASONING_EFFORT "${raw}" — using "${DEFAULT_REASONING_EFFORT}"`,
   );
