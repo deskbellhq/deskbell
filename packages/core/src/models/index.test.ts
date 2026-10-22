@@ -8,6 +8,7 @@ import {
   parseModelId,
   reasoningEffort,
   reasoningProviderOptions,
+  reasoningVisible,
 } from "./index";
 
 // Construction only — no test here may hit the network. Provider SDKs read
@@ -98,6 +99,19 @@ describe("provider wiring (D4/D13)", () => {
   });
 });
 
+describe("reasoning visibility (DESKBELL_SHOW_REASONING)", () => {
+  it("is off unless asked for, and reads the usual truthy spellings", () => {
+    expect(reasoningVisible({})).toBe(false);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "" })).toBe(false);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "false" })).toBe(false);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "no" })).toBe(false);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "true" })).toBe(true);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: " TRUE " })).toBe(true);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "1" })).toBe(true);
+    expect(reasoningVisible({ DESKBELL_SHOW_REASONING: "yes" })).toBe(true);
+  });
+});
+
 describe("reasoning effort (DESKBELL_REASONING_EFFORT)", () => {
   it("defaults to low — the answer path never waits on a provider default", () => {
     expect(reasoningEffort({})).toBe("low");
@@ -129,6 +143,16 @@ describe("reasoning effort (DESKBELL_REASONING_EFFORT)", () => {
     expect(reasoningProviderOptions("anthropic", "minimal")).toBeUndefined();
     expect(reasoningProviderOptions("ollama", "low")).toBeUndefined();
     expect(reasoningProviderOptions("google", "low")).toBeUndefined();
+  });
+
+  it("asks openai for a reasoning summary only when reasoning is shown (spec: activity-disclosure)", () => {
+    expect(reasoningProviderOptions("openai", "low", true)).toEqual({
+      openai: { reasoningEffort: "low", reasoningSummary: "auto" },
+    });
+    expect(reasoningProviderOptions("openai", "provider", true)).toEqual({
+      openai: { reasoningSummary: "auto" },
+    });
+    expect(reasoningProviderOptions("anthropic", "low", true)).toBeUndefined();
   });
 
   it("builds deps at every level for every wired chat provider", () => {

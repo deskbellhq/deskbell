@@ -42,7 +42,11 @@ eight thousand characters of a result shown to the model
 - A step line per call above the answer: the tool's label
   ([as the operator wrote it](/actions/mcp-servers#shown-to-visitors)) with a
   spinner while it runs, a check mark when it finished, *Couldn't complete*
-  when it failed.
+  when it failed. The lines sit under one fold that is open while the model
+  works and closes once the answer starts, with a summary such as *Worked
+  for 3s · 2 steps*; the visitor can open it again. With
+  [`DESKBELL_SHOW_REASONING`](/deploy/models#showing-the-reasoning) on, the
+  model's reasoning appears between the lines.
 - For a confirmation, a card with the tool's label, the arguments one per
   line, and *Cancel* / *Confirm*. Once answered it becomes a step line on
   the same message; it expires after ten minutes.

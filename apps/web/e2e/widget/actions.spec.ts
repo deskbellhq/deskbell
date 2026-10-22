@@ -17,6 +17,7 @@ test.describe("actions from a host page", () => {
     const done = { type: "done", conversationId: "conv_stub", messageId: "msg_stub" };
     const posted = await stubAskFrames(page, [
       [
+        { type: "reasoning", value: "The visitor asks about an order; look it up." },
         { type: "action", id: "act_1", title: "Look up your order", status: "running" },
         { type: "action", id: "act_1", title: "Look up your order", status: "succeeded" },
         { type: "token", value: "Your order shipped yesterday." },
@@ -58,6 +59,17 @@ test.describe("actions from a host page", () => {
     await input.fill("Where is my order?");
     await dialog.getByRole("button", { name: "Send" }).click();
     await expect(dialog.getByText("Your order shipped yesterday.")).toBeVisible();
+    // The steps fold under one line once the answer starts (spec: activity-disclosure).
+    const fold = dialog.locator('[part="activity"]').first();
+    await expect(fold.locator('[part="activity-summary"]')).toHaveText(
+      /^Worked for \d+s · 1 steps$/,
+    );
+    await expect(fold).not.toHaveAttribute("open", "");
+    await fold.locator('[part="activity-summary"]').click();
+    await expect(fold).toHaveAttribute("open", "");
+    await expect(fold.locator('[part="reasoning"]')).toHaveText(
+      "The visitor asks about an order; look it up.",
+    );
     const step = dialog.locator('[part="action"]').first();
     await expect(step.locator('[part="action-title"]')).toHaveText("Look up your order");
     // The check mark carries the state; the word is there for screen readers only.

@@ -71,6 +71,8 @@ export interface EngineTool {
  */
 export type GenerationPart =
   | { type: "text"; value: string }
+  /** The model's visible reasoning, a delta at a time (spec: activity-disclosure). */
+  | { type: "reasoning"; value: string }
   | { type: "tool-call"; callId: string; tool: string; input: unknown }
   | { type: "tool-result"; callId: string; tool: string; output: unknown; error?: string }
   /** The turn stopped on a tool that needs the visitor's confirmation. */
@@ -741,6 +743,12 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         const part: GenerationPart = typeof raw === "string" ? { type: "text", value: raw } : raw;
         if (part.type !== "text") {
           switch (part.type) {
+            case "reasoning":
+              // Not an answer: it bypasses the holds, which exist to keep a
+              // refusal or a clarification out of the bubble, and the
+              // verification, which reads only what was said.
+              yield { type: "reasoning", value: part.value };
+              break;
             case "tool-call": {
               const tool = toolByName.get(part.tool);
               // A tool that needs confirmation does not start here: the model

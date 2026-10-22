@@ -139,6 +139,9 @@ export const COPY_KEYS = [
   "actionApproved",
   "actionDenied",
   "actionExpired",
+  "activityDone",
+  "activitySteps",
+  "reasoning",
 ] as const;
 
 export type WidgetCopy = Record<(typeof COPY_KEYS)[number], string>;
@@ -333,6 +336,9 @@ export const PARTS = [
   "action-buttons",
   "action-card",
   "action-details",
+  "activity",
+  "activity-summary",
+  "reasoning",
 ] as const;
 
 /** Named slots whose default content is native slot fallback. */

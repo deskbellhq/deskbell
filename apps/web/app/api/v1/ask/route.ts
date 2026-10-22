@@ -12,7 +12,7 @@ import {
   type Turn,
   verifyFromEnv,
 } from "@deskbell/core";
-import { chatModelId, createEngineModelDeps } from "@deskbell/core/models";
+import { chatModelId, createEngineModelDeps, reasoningVisible } from "@deskbell/core/models";
 import { actionCalls, conversations, messages, readIgnoredTerms } from "@deskbell/db";
 import {
   AskRequestSchema,
@@ -426,6 +426,8 @@ export async function POST(request: Request) {
         };
 
         const started = performance.now();
+        // A deployment decision, never the request's (spec: activity-disclosure).
+        const showReasoning = reasoningVisible();
         try {
           const ignoredTerms = await ignoredTermsRead;
           for await (const raw of engine.ask({
@@ -463,6 +465,7 @@ export async function POST(request: Request) {
           })) {
             let event = raw;
             if (event.type === "done") continue; // replaced by our own below, with a real messageId
+            if (event.type === "reasoning" && !showReasoning) continue;
             if (event.type === "token") answerText += event.value;
             if (event.type === "citations") {
               citations = event.citations.map((c) =>

@@ -150,16 +150,36 @@ export function reasoningEffort(env: NodeJS.ProcessEnv = process.env): Reasoning
 }
 
 /**
- * The provider options that pin the effort, or undefined when nothing should
- * be sent. Exported for the test: the wrapped model is opaque, this is not.
+ * Whether the widget shows the model's reasoning beside its tool calls
+ * (spec: activity-disclosure). Off unless `DESKBELL_SHOW_REASONING` is set,
+ * because reasoning is written for the model, not the visitor: it names the
+ * refusal sentinel, the context, the tools, and whatever the prompt says —
+ * a deployment turns it on knowing that. The ask route drops the events
+ * when this is off, whatever the model emitted.
+ */
+export function reasoningVisible(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.DESKBELL_SHOW_REASONING?.trim().toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes";
+}
+
+/**
+ * The provider options that pin the effort and, when reasoning is shown,
+ * ask for its summary — or undefined when nothing should be sent. Only
+ * `openai/*` has either setting; its reasoning models emit no reasoning text
+ * at all unless a summary is requested, so the request rides on the same
+ * flag as the display. Exported for the test: the wrapped model is opaque,
+ * this is not.
  */
 export function reasoningProviderOptions(
   provider: string,
   effort: ReasoningEffort,
+  visible = false,
 ): Record<string, Record<string, string>> | undefined {
-  if (effort === "provider") return undefined;
-  if (provider === "openai") return { openai: { reasoningEffort: effort } };
-  return undefined;
+  if (provider !== "openai") return undefined;
+  const openai: Record<string, string> = {};
+  if (effort !== "provider") openai.reasoningEffort = effort;
+  if (visible) openai.reasoningSummary = "auto";
+  return Object.keys(openai).length > 0 ? { openai } : undefined;
 }
 
 /**
@@ -168,7 +188,7 @@ export function reasoningProviderOptions(
  * them can forget. Default "provider" so that the callers which deliberately
  * leave the model alone — the judge, the gap analyst — read as such.
  */
-function languageModel(id: string, effort: ReasoningEffort = "provider") {
+function languageModel(id: string, effort: ReasoningEffort = "provider", visible = false) {
   const { provider, model } = parseModelId(id);
   const base = (() => {
     switch (provider) {
@@ -184,7 +204,7 @@ function languageModel(id: string, effort: ReasoningEffort = "provider") {
         return unsupported(provider);
     }
   })();
-  const providerOptions = reasoningProviderOptions(provider, effort);
+  const providerOptions = reasoningProviderOptions(provider, effort, visible);
   if (!providerOptions) return base;
   return wrapLanguageModel({
     model: base,
@@ -383,7 +403,9 @@ export function createEngineModelDeps(
   // spend thinking is waited on exactly as the answer is.
   const effort = reasoningEffort(env);
   const answerPathModel = (id: string) => languageModel(id, effort);
-  const chat = overrides.chat ?? answerPathModel(chatId);
+  // Only the chat model's reasoning reaches the visitor, so only it is asked
+  // for a summary; the planner and the reranker would pay for text nobody reads.
+  const chat = overrides.chat ?? languageModel(chatId, effort, reasoningVisible(env));
   const embeddingId = embeddingModelId(env);
   const embedder = embeddingModel(embeddingId);
   const embedOptions = embeddingProviderOptions(parseModelId(embeddingId).provider, "query");
@@ -457,6 +479,9 @@ export function createEngineModelDeps(
         switch (part.type) {
           case "text-delta":
             yield part.text;
+            break;
+          case "reasoning-delta":
+            yield { type: "reasoning", value: part.text } satisfies GenerationPart;
             break;
           case "tool-call":
             yield {
