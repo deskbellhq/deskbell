@@ -1,4 +1,4 @@
-import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
+import { createMCPClient, type InitializeResult, type MCPClient } from "@ai-sdk/mcp";
 import type { actionServers } from "@deskbell/db";
 import {
   ACTION_IDENTITY_HEADER,
@@ -22,7 +22,8 @@ import {
  * A client here is cheap to make: with the stored initialize result the
  * transport starts without a handshake, and the tool list comes from the
  * row. Nothing touches the network until a tool is called or a refresh asks
- * for the list.
+ * for the list. The exception is a server on the newer protocol revision,
+ * which gets its handshake every time (see `reusableInitializeResult`).
  */
 
 export type ActionServerRow = typeof actionServers.$inferSelect;
@@ -44,6 +45,28 @@ export type ActionServerConnection = Pick<
   | "exchangeScope"
   | "initializeResult"
 >;
+
+/**
+ * The first protocol revision whose handshake is `server/discover` and whose
+ * requests carry a `_meta` envelope. A stored initialize result from such a
+ * server cannot stand in for the handshake: the client library applies every
+ * stored result as the older era, so the calls that follow go out without
+ * the envelope and the server rejects each one. Revisions are dates, so a
+ * string comparison orders them.
+ */
+export const FIRST_ENVELOPE_PROTOCOL_VERSION = "2026-07-28";
+
+/**
+ * The stored initialize result when it may replace the handshake, undefined
+ * when the server must be initialized again: a result from the newer
+ * revision, or one with no readable revision at all.
+ */
+export function reusableInitializeResult(stored: unknown): InitializeResult | undefined {
+  if (!stored || typeof stored !== "object") return undefined;
+  const version = (stored as { protocolVersion?: unknown }).protocolVersion;
+  if (typeof version !== "string" || version >= FIRST_ENVELOPE_PROTOCOL_VERSION) return undefined;
+  return stored as InitializeResult;
+}
 
 export const DISCOVERY_TIMEOUT_MS = 5000;
 export const INITIALIZE_TIMEOUT_MS = 3000;
@@ -85,10 +108,8 @@ export async function connectActionServer(
     ...(opts.identityToken ? { [ACTION_IDENTITY_HEADER]: opts.identityToken } : {}),
   };
   const initialInitializeResult =
-    !opts.fresh && server.transport === "http" && server.initializeResult
-      ? (server.initializeResult as Parameters<
-          typeof createMCPClient
-        >[0]["initialInitializeResult"])
+    !opts.fresh && server.transport === "http"
+      ? reusableInitializeResult(server.initializeResult)
       : undefined;
   return createMCPClient({
     clientName: "deskbell",
