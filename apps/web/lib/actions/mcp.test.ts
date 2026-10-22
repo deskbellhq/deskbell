@@ -7,7 +7,9 @@ import {
   type ActionServerConnection,
   connectActionServer,
   discoverActionServer,
+  FIRST_ENVELOPE_PROTOCOL_VERSION,
   normalizeToolResult,
+  reusableInitializeResult,
 } from "./mcp";
 
 /**
@@ -40,11 +42,19 @@ function makeServer() {
 
 async function fakeServer() {
   const seen: Array<Record<string, string>> = [];
+  /** The JSON-RPC methods the client sent, in order. */
+  const methods: string[] = [];
   // Stateless mode: one server and transport per request, as a serverless
   // MCP server would have.
   const fetchImpl: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     seen.push(Object.fromEntries(request.headers.entries()));
+    if (request.method === "POST") {
+      const body = (await request.clone().json()) as { method?: string } | { method?: string }[];
+      for (const message of Array.isArray(body) ? body : [body]) {
+        if (typeof message.method === "string") methods.push(message.method);
+      }
+    }
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
@@ -57,7 +67,7 @@ async function fakeServer() {
       await transport.close();
     }
   };
-  return { fetchImpl, seen };
+  return { fetchImpl, seen, methods };
 }
 
 const connection: ActionServerConnection = {
@@ -94,9 +104,10 @@ describe("discoverActionServer", () => {
 
 describe("connectActionServer", () => {
   it("reuses the stored initialize result and sends the identity header on a call", async () => {
-    const { fetchImpl, seen } = await fakeServer();
+    const { fetchImpl, seen, methods } = await fakeServer();
     const discovery = await discoverActionServer(connection, { fetch: fetchImpl });
     seen.length = 0;
+    methods.length = 0;
     const client = await connectActionServer(
       { ...connection, initializeResult: discovery.initializeResult },
       { fetch: fetchImpl, identityToken: "eyJ.visitor" },
@@ -104,6 +115,8 @@ describe("connectActionServer", () => {
     try {
       const result = await client.callTool({ name: "order_status", arguments: { id: "42" } });
       expect(normalizeToolResult(result)).toEqual({ output: "order 42 shipped" });
+      // No handshake: the stored result stood in for it.
+      expect(methods).toEqual(["tools/call"]);
       expect(seen.length).toBeGreaterThan(0);
       expect(seen.every((h) => h[ACTION_IDENTITY_HEADER] === "eyJ.visitor")).toBe(true);
       const failed = await client.callTool({ name: "cancel_order", arguments: { id: "42" } });
@@ -144,10 +157,62 @@ describe("connectActionServer", () => {
     }
   });
 
+  it("performs the handshake again for a server on the envelope protocol", async () => {
+    // The stored result from such a server cannot stand in for the handshake:
+    // applied as-is, the client would treat the server as the older era and
+    // send calls without the envelope it requires. Here the in-process server
+    // speaks the older protocol, so the handshake it gets is `initialize`;
+    // what is pinned is that one happens at all, and that the call then works.
+    const { fetchImpl, methods } = await fakeServer();
+    const discovery = await discoverActionServer(connection, { fetch: fetchImpl });
+    methods.length = 0;
+    const client = await connectActionServer(
+      {
+        ...connection,
+        initializeResult: {
+          ...discovery.initializeResult,
+          protocolVersion: FIRST_ENVELOPE_PROTOCOL_VERSION,
+        },
+      },
+      { fetch: fetchImpl },
+    );
+    try {
+      const result = await client.callTool({ name: "order_status", arguments: { id: "7" } });
+      expect(normalizeToolResult(result)).toEqual({ output: "order 7 shipped" });
+      expect(methods).toContain("initialize");
+      expect(methods.at(-1)).toBe("tools/call");
+    } finally {
+      await client.close();
+    }
+  });
+
   it("refuses a URL that fails the webhook checks", async () => {
     await expect(
       connectActionServer({ ...connection, url: "http://10.0.0.1/mcp" }),
     ).rejects.toThrow(/URL/);
+  });
+});
+
+describe("reusableInitializeResult", () => {
+  const legacy = {
+    protocolVersion: "2025-11-25",
+    capabilities: {},
+    serverInfo: { name: "s", version: "1" },
+  };
+
+  it("keeps a result from the older protocol and drops one from the envelope protocol", () => {
+    expect(reusableInitializeResult(legacy)).toBe(legacy);
+    expect(reusableInitializeResult({ ...legacy, protocolVersion: "2025-03-26" })).toBeDefined();
+    expect(
+      reusableInitializeResult({ ...legacy, protocolVersion: FIRST_ENVELOPE_PROTOCOL_VERSION }),
+    ).toBeUndefined();
+    expect(reusableInitializeResult({ ...legacy, protocolVersion: "2027-01-01" })).toBeUndefined();
+  });
+
+  it("drops anything without a readable protocol version", () => {
+    expect(reusableInitializeResult(null)).toBeUndefined();
+    expect(reusableInitializeResult("2025-11-25")).toBeUndefined();
+    expect(reusableInitializeResult({ capabilities: {} })).toBeUndefined();
   });
 });
 
