@@ -117,8 +117,10 @@ refused question with what was retrieved.
 <Accordion title="Every request from a script returns 403">
 
 The widget endpoints reject requests whose user agent looks like a bot or a
-command-line tool, and `POST /api/v1/ask` requires an `Origin` header. Calling
-them from `curl` needs a browser user agent and an allowlisted origin.
+command-line tool, and `POST /api/v1/ask` requires an `Origin` header. The
+403 body says which it was: `"reason": "user_agent"` for the first, `"Origin
+not allowed"` for the second. Calling them from `curl` needs a browser user
+agent and an allowlisted origin.
 [Security](/manage/security#what-runs-on-every-request) lists the guards in
 order.
 
