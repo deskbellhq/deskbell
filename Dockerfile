@@ -22,6 +22,10 @@ RUN pnpm install --frozen-lockfile \
 RUN node -e "import('weaviate-client')"
 
 FROM deps AS build
+# The widget bundle the web app serves at /deskbell.js. Turbo orders it before
+# the app through ^build; a plain filtered build does not, and an image without
+# it answers every script tag with a 503.
+RUN pnpm --filter @deskbell/widget-snippet build
 RUN pnpm --filter @deskbell/web build
 
 # --- web: full-deps image running `next start` (reliable with pnpm monorepo).
