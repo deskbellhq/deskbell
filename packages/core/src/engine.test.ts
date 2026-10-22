@@ -12,6 +12,7 @@ import {
   parseClarify,
   REFUSAL_SENTINEL,
   SYSTEM_PROMPT,
+  splitSentinelTail,
   VERIFY_PROMPT,
 } from "./engine";
 import { RETRIEVAL_DEFAULTS, type ScoredChunk, type SearchOptions } from "./retrieval/vector-store";
@@ -127,6 +128,38 @@ describe("createEngine — the refusal contract", () => {
     // the provider stops. Dropping it would silently lose the whole answer.
     const events = await collect([chunk("c1")], ["NO_GR"]);
     expect(text(events)).toBe("NO_GR");
+    expect(events.some((e) => e.type === "refusal")).toBe(false);
+  });
+
+  it("treats the sentinel after a sentence as a refusal and shows none of it", async () => {
+    // The contract asks for the sentinel alone, but a model sometimes talks
+    // itself into the refusal first. The visitor must not read the word, and
+    // the outcome is the refusal the model arrived at.
+    const events = await collect(
+      [chunk("c1")],
+      ["The documentation does not ", "cover that. ", "NO_", "GROUND", "ING"],
+    );
+    expect(events.at(-1)).toEqual({ type: "refusal", reason: "no_grounding" });
+    expect(text(events)).not.toContain("NO_");
+  });
+
+  it("holds a trailing prefix of the sentinel until the next token settles it", async () => {
+    // "NO" at the end of a chunk may be the start of the sentinel or the end
+    // of a sentence; it is withheld for one token, then released as prose.
+    const events = await collect([chunk("c1")], ["The answer is NO", ", not yes."]);
+    expect(text(events)).toBe("The answer is NO, not yes.");
+    expect(events.some((e) => e.type === "refusal")).toBe(false);
+  });
+
+  it("leaves the sentinel alone inside another word", async () => {
+    const events = await collect([chunk("c1")], ["See ANNO_GROUNDING_X for details."]);
+    expect(text(events)).toBe("See ANNO_GROUNDING_X for details.");
+    expect(events.some((e) => e.type === "refusal")).toBe(false);
+  });
+
+  it("releases a sentinel prefix left at the end of the stream as text", async () => {
+    const events = await collect([chunk("c1")], ["Short answer: NO"]);
+    expect(text(events)).toBe("Short answer: NO");
     expect(events.some((e) => e.type === "refusal")).toBe(false);
   });
 
@@ -1104,5 +1137,24 @@ describe("createEngine — citing what the answer used", () => {
     const events = await collect(HITS, [REFUSAL_SENTINEL]);
 
     expect(events.some((e) => e.type === "citations")).toBe(false);
+  });
+});
+
+describe("splitSentinelTail", () => {
+  it("holds the longest tail that is a prefix of the sentinel at a word boundary", () => {
+    expect(splitSentinelTail("the answer is NO")).toEqual({ emit: "the answer is ", hold: "NO" });
+    expect(splitSentinelTail("text NO_GROUNDIN")).toEqual({ emit: "text ", hold: "NO_GROUNDIN" });
+    expect(splitSentinelTail("N")).toEqual({ emit: "", hold: "N" });
+  });
+
+  it("holds nothing when the tail continues a word or is not a prefix", () => {
+    expect(splitSentinelTail("ANNO")).toEqual({ emit: "ANNO", hold: "" });
+    expect(splitSentinelTail("NOW")).toEqual({ emit: "NOW", hold: "" });
+    expect(splitSentinelTail("plain text.")).toEqual({ emit: "plain text.", hold: "" });
+    expect(splitSentinelTail("")).toEqual({ emit: "", hold: "" });
+  });
+
+  it("never holds the whole sentinel: that is a refusal, not a prefix", () => {
+    expect(splitSentinelTail("NO_GROUNDING")).toEqual({ emit: "NO_GROUNDING", hold: "" });
   });
 });
