@@ -1,7 +1,7 @@
 ---
 title: MCP servers
 description: Attach a remote MCP server over Streamable HTTP or SSE, give it a credential, refresh its tools and set each tool to off, allowed or needs-confirmation.
-updated: 2026-10-05
+updated: 2026-10-22
 ---
 
 Under **Actions › Servers** in the dashboard an admin attaches a server, Deskbell asks it for
@@ -100,6 +100,8 @@ not shown to the model.
 
 - Ten servers and one hundred tools per project.
 - Four model steps per turn, thirty seconds per call, eight thousand characters
-  of a result — all [configurable](/deploy/environment-variables#actions).
+  of a result — all [configurable](/deploy/environment-variables#actions). A
+  turn whose last step still calls a tool gets one closing generation with no
+  tools, so the visitor always sees an answer rather than a stalled indicator.
 - One confirmation at a time per turn; a second tool that needs confirmation
   waits for the next turn.

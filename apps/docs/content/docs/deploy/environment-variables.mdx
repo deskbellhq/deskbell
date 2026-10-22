@@ -1,7 +1,7 @@
 ---
 title: Environment variables
 description: Every environment variable Deskbell reads, what it defaults to, and which ones change whether visitors get an answer at all.
-updated: 2026-09-22
+updated: 2026-10-22
 ---
 
 Deskbell is configured entirely through environment variables. `.env.example` in
@@ -168,7 +168,7 @@ Actions** ([Actions](/actions)). These bound what one turn may do.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DESKBELL_ACTION_MAX_STEPS` | `4` | Model steps per turn; each tool call is a step |
+| `DESKBELL_ACTION_MAX_STEPS` | `4` | Model steps per turn; each tool call is a step. When the last step ends in a tool call, one more generation with no tools writes the answer from what the tools returned |
 | `DESKBELL_ACTION_TIMEOUT_MS` | `30000` | How long one tool call may take before it is reported as failed |
 | `DESKBELL_ACTION_RESULT_MAX_CHARS` | `8000` | How much of a tool result the model is shown; longer results are cut and marked |
 | `DESKBELL_ACTION_APPROVAL_TTL_MIN` | `10` | How long a confirmation card can be answered before it expires |

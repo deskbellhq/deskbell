@@ -11,6 +11,7 @@ import {
   embedMany,
   generateText,
   jsonSchema,
+  type LanguageModel,
   type ModelMessage,
   stepCountIs,
   streamText,
@@ -349,18 +350,34 @@ function toolSet(tools: EngineTool[], actions: ActionOptions): ToolSet {
   );
 }
 
+/**
+ * What the model is told once the step budget has run out on a tool call:
+ * the results it has, and that the answer must come now. Plain text, so the
+ * request that carries it needs no tool definitions.
+ */
+const STEPS_EXHAUSTED_PROMPT =
+  "Those are the results of the tools you called. No further tool call is possible in " +
+  "this turn. Answer the question now from the context and these results. If they do " +
+  "not answer it, say plainly what was found and what was not.";
+
+/** A model a test hands in; production builds its own from the environment. */
+export interface ModelOverrides {
+  chat?: LanguageModel;
+}
+
 /** Engine-facing deps for the ask path (apps/web). */
 export function createEngineModelDeps(
   env: NodeJS.ProcessEnv = process.env,
   generation: GenerationOptions = {},
   actions: ActionOptions = actionOptionsFromEnv(env),
+  overrides: ModelOverrides = {},
 ): Pick<EngineDeps, "generate" | "embed" | "planQuery" | "rerank"> {
   const chatId = chatModelId(env);
   // One effort for the whole visitor path: what the planner and the reranker
   // spend thinking is waited on exactly as the answer is.
   const effort = reasoningEffort(env);
   const answerPathModel = (id: string) => languageModel(id, effort);
-  const chat = answerPathModel(chatId);
+  const chat = overrides.chat ?? answerPathModel(chatId);
   const embeddingId = embeddingModelId(env);
   const embedder = embeddingModel(embeddingId);
   const embedOptions = embeddingProviderOptions(parseModelId(embeddingId).provider, "query");
@@ -406,6 +423,10 @@ export function createEngineModelDeps(
           ]
         : [...prior, { role: "user", content: `Context:\n${context}\n\nQuestion: ${message}` }];
       const policies = new Map((tools ?? []).map((tool) => [tool.name, tool.policy]));
+      const settings = {
+        ...(generation.temperature === undefined ? {} : { temperature: generation.temperature }),
+        ...(generation.seed === undefined ? {} : { seed: generation.seed }),
+      };
       const result = streamText({
         model: chat,
         system,
@@ -421,10 +442,11 @@ export function createEngineModelDeps(
                 : {}),
             }
           : {}),
-        ...(generation.temperature === undefined ? {} : { temperature: generation.temperature }),
-        ...(generation.seed === undefined ? {} : { seed: generation.seed }),
+        ...settings,
       });
       let paused = false;
+      /** How the last step ended; "tool-calls" at the end means the budget ran out on one. */
+      let lastFinish: string | undefined;
       for await (const part of result.fullStream) {
         switch (part.type) {
           case "text-delta":
@@ -468,6 +490,7 @@ export function createEngineModelDeps(
             } satisfies GenerationPart;
             break;
           case "finish-step":
+            lastFinish = part.finishReason;
             yield {
               type: "step-end",
               finish:
@@ -489,12 +512,47 @@ export function createEngineModelDeps(
         // hand back as `resume.messages`.
         yield { type: "paused", messages: await result.responseMessages } satisfies GenerationPart;
       }
+      // The step budget ran out on a call: the model spent its last allowed
+      // step calling a tool, the tool ran, and no step was left to write the
+      // answer. Left there, the turn ends with the tool's output and no text,
+      // and the visitor gets an empty message. One more generation, with no
+      // tools at all, turns what the calls returned into an answer. It is
+      // given the results as plain text rather than the step messages: a
+      // request that carries tool parts must also define the tools, and the
+      // point of this step is that nothing can be called.
+      let finalUsage: ReturnType<typeof streamText>["totalUsage"] | undefined;
+      if (!paused && lastFinish === "tool-calls" && tools && tools.length > 0) {
+        const steps = await result.steps;
+        const results = steps
+          .flatMap((step) => step.toolResults)
+          .map((r) => toolResultForModel(r.toolName, r.output, actions.resultMaxChars));
+        const final = streamText({
+          model: chat,
+          system,
+          messages: [
+            // The turns with text content: prior history and the question with
+            // its context. Tool parts, and a resumed step's messages, stay out.
+            ...messages.filter((m) => typeof m.content === "string"),
+            { role: "user", content: `${results.join("\n")}\n\n${STEPS_EXHAUSTED_PROMPT}` },
+          ],
+          ...settings,
+        });
+        for await (const part of final.fullStream) {
+          if (part.type === "text-delta") yield part.text;
+          else if (part.type === "error") throw part.error;
+        }
+        finalUsage = final.totalUsage;
+      }
       // After the stream, so the provider has reported totals. The engine drains
       // this generator even on a refusal, so this always runs for a request the
       // model actually saw (spec: widget-abuse-protection).
       if (onUsage) {
         const usage = await result.totalUsage;
-        onUsage({ input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 });
+        const extra = finalUsage ? await finalUsage : undefined;
+        onUsage({
+          input: (usage.inputTokens ?? 0) + (extra?.inputTokens ?? 0),
+          output: (usage.outputTokens ?? 0) + (extra?.outputTokens ?? 0),
+        });
       }
     },
   };

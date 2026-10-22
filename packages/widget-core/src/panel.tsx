@@ -1033,7 +1033,14 @@ export function Panel({
           updateLast((m) => ({ ...m, pending: false, text: event.question, clarify }));
           emit("clarify", { question, asked: event.question, options: event.options });
         } else if (event.type === "done") {
-          if (event.messageId) updateLast((m) => ({ ...m, id: event.messageId }));
+          // The stream is over, whatever it carried. An answer with no text
+          // at all — every step went to a tool and nothing was written —
+          // would otherwise keep its typing indicator for good.
+          updateLast((m) => ({
+            ...m,
+            pending: false,
+            ...(event.messageId ? { id: event.messageId } : {}),
+          }));
           if (event.conversationId) {
             setActiveConvId(event.conversationId);
             storeConv(projectKey, event.conversationId);
