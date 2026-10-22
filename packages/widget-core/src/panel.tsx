@@ -65,11 +65,26 @@ interface ChatMessage {
   /** Tool calls the answer made or asked about (spec: mcp-actions). */
   actions?: WidgetAction[];
   /**
+   * What the model did before it answered, in order: reasoning it emitted
+   * and the calls it made (spec: activity-disclosure). Actions are keyed
+   * into `actions`; reasoning lives only here and only for this session.
+   * Absent on a replayed message, whose `actions` then stand in.
+   */
+  trail?: TrailItem[];
+  /** When the turn started, so the activity header can say how long it took. */
+  startedAt?: number;
+  /** From the start to the first thing said to the visitor, once known. */
+  workedMs?: number;
+  /** The visitor's own open/closed choice for the activity group; unset means automatic. */
+  activityOpen?: boolean;
+  /**
    * Names the answer asserted that the documentation does not contain (spec:
    * answer-verification). Spoken under the answer in the assistant's voice.
    */
   unsupportedTerms?: string[];
 }
+
+type TrailItem = { kind: "reasoning"; text: string } | { kind: "action"; id: string };
 
 // Defaults for every overridable string; `config.copy` replaces any of them.
 // Key names are pinned by COPY_KEYS in @deskbell/shared/widget-config.
@@ -124,7 +139,17 @@ const DEFAULT_COPY = {
   actionApproved: "Confirmed",
   actionDenied: "Cancelled",
   actionExpired: "Expired",
+  activityDone: "Worked for {s}s",
+  activitySteps: "{n} steps",
+  reasoning: "Reasoning",
 };
+
+/** `{name}` placeholders in a copy string, filled. */
+function fill(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    key in vars ? String(vars[key]) : match,
+  );
+}
 
 const SESSION_KEY = "deskbell-session";
 
@@ -301,9 +326,83 @@ function actionStatusCopy(action: WidgetAction, copy: typeof DEFAULT_COPY): stri
  * busy, so the typing dots wait until the model is writing again.
  */
 function showBubble(m: ChatMessage): boolean {
-  if (m.text || m.refused || !m.actions?.length) return true;
+  if (m.text || m.refused) return true;
+  const busy = m.actions?.some((a) => a.status === "running") || hasReasoning(m);
+  if (!m.actions?.length && !busy) return true;
   if (!m.pending) return false;
-  return !m.actions.some((a) => a.status === "running");
+  return !busy;
+}
+
+function hasReasoning(m: ChatMessage): boolean {
+  return m.trail?.some((t) => t.kind === "reasoning") ?? false;
+}
+
+/**
+ * What the activity group shows, in order (spec: activity-disclosure): the
+ * trail when the turn streamed here, else the stored calls. Open cards are
+ * not steps — they render below, as cards.
+ */
+function activityGroups(m: ChatMessage): ActivityGroup[] {
+  const byId = new Map((m.actions ?? []).map((a) => [a.id, a]));
+  const trail: TrailItem[] =
+    m.trail ?? (m.actions ?? []).map((a) => ({ kind: "action", id: a.id }));
+  const out: ActivityGroup[] = [];
+  for (const item of trail) {
+    if (item.kind === "reasoning") {
+      if (item.text.trim()) out.push(item);
+      continue;
+    }
+    const action = byId.get(item.id);
+    if (!action || isOpenCard(action)) continue;
+    const last = out[out.length - 1];
+    if (last?.kind === "steps") last.actions.push(action);
+    else out.push({ kind: "steps", actions: [action] });
+  }
+  return out;
+}
+
+/** A run of consecutive step lines, or a block of reasoning between them. */
+type ActivityGroup =
+  | { kind: "reasoning"; text: string }
+  | { kind: "steps"; actions: WidgetAction[] };
+
+/**
+ * The group stays open while the model is still at it and folds once it has
+ * started answering, as the visitor's attention moves to the answer. Their
+ * own toggle, if they made one, wins (see `activityOpen`).
+ */
+function activityAutoOpen(m: ChatMessage): boolean {
+  return Boolean(m.pending) || (m.actions?.some((a) => a.status === "running") ?? false);
+}
+
+/** How long the model worked, in whole seconds, never zero once it is known. */
+function workedSeconds(m: ChatMessage): number | null {
+  if (m.workedMs === undefined) return null;
+  return Math.max(1, Math.round(m.workedMs / 1000));
+}
+
+/** Marks the moment the visitor first heard something, once per message. */
+function settle(m: ChatMessage): ChatMessage {
+  if (m.workedMs !== undefined || m.startedAt === undefined) return m;
+  return { ...m, workedMs: Date.now() - m.startedAt };
+}
+
+/** The trail with this call in it, appended if it was not there yet. */
+function withStep(trail: TrailItem[] | undefined, id: string): TrailItem[] {
+  const current = trail ?? [];
+  return current.some((t) => t.kind === "action" && t.id === id)
+    ? current
+    : [...current, { kind: "action", id }];
+}
+
+/** The trail with this reasoning on it, extending the segment the model is still writing. */
+function withReasoning(trail: TrailItem[] | undefined, value: string): TrailItem[] {
+  const current = trail ?? [];
+  const last = current[current.length - 1];
+  if (last?.kind === "reasoning") {
+    return [...current.slice(0, -1), { kind: "reasoning", text: last.text + value }];
+  }
+  return [...current, { kind: "reasoning", text: value }];
 }
 
 /** A call waiting for the visitor: a card, not a step line. */
@@ -366,6 +465,102 @@ function uniqueCitations(citations: Citation[]): Citation[] {
     seen.add(c.documentId);
     return true;
   });
+}
+
+/**
+ * What the model did before it answered, folded under one line (spec:
+ * activity-disclosure): reasoning as quiet blocks, calls as step lines, in
+ * the order they happened. Open while the model is at it, closed once the
+ * answer starts, and the visitor's own toggle wins over both.
+ */
+function Activity({
+  message: m,
+  copy,
+  onToggle,
+}: {
+  message: ChatMessage;
+  copy: typeof DEFAULT_COPY;
+  onToggle: (open: boolean) => void;
+}) {
+  const groups = activityGroups(m);
+  const steps = groups.reduce((n, g) => n + (g.kind === "steps" ? g.actions.length : 0), 0);
+  const busy = activityAutoOpen(m);
+  const open = m.activityOpen ?? busy;
+  const seconds = workedSeconds(m);
+  const summary = busy
+    ? `${copy.thinking}…`
+    : [
+        seconds === null ? "" : fill(copy.activityDone, { s: seconds }),
+        steps > 0 ? fill(copy.activitySteps, { n: steps }) : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  return (
+    <details
+      class="activity"
+      part="activity"
+      open={open}
+      onToggle={(e) => onToggle((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary class="activity-summary" part="activity-summary">
+        <span class="action-glyph activity-glyph">
+          {busy ? (
+            <i class="spin" aria-hidden="true" />
+          ) : (
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          )}
+        </span>
+        <span class="activity-label">{summary}</span>
+      </summary>
+      <div class="activity-body">
+        {groups.map((group, index) =>
+          group.kind === "reasoning" ? (
+            <div
+              key={index}
+              class="reasoning"
+              part="reasoning"
+              role="note"
+              aria-label={copy.reasoning}
+            >
+              {group.text}
+            </div>
+          ) : (
+            <div class="actions" part="actions" key={index}>
+              {group.actions.map((a) => (
+                <div key={a.id} class={`action ${a.status}`} part="action">
+                  <span class="action-glyph">
+                    <StepGlyph status={a.status} />
+                  </span>
+                  <span class="action-title" part="action-title">
+                    {a.status === "running" ? `${a.title}…` : a.title}
+                  </span>
+                  <span
+                    class={`action-status${statusIsQuiet(a.status) ? " sr-only" : ""}`}
+                    part="action-status"
+                    role="status"
+                  >
+                    {actionStatusCopy(a, copy)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ),
+        )}
+      </div>
+    </details>
+  );
 }
 
 /**
@@ -759,7 +954,7 @@ export function Panel({
       return prev.map((m, i) => {
         if (i !== target) return m;
         const rest = (m.actions ?? []).filter((a) => a.id !== action.id);
-        return { ...m, actions: [...rest, action] };
+        return { ...m, actions: [...rest, action], trail: withStep(m.trail, action.id) };
       });
     });
   };
@@ -974,7 +1169,7 @@ export function Panel({
           : m,
       ),
       ...(approval ? [] : [{ role: "user" as const, text: question }]),
-      { role: "assistant", text: "", pending: true },
+      { role: "assistant", text: "", pending: true, startedAt: Date.now() },
     ]);
     let answerText = "";
     let answerCitations: Citation[] = [];
@@ -992,14 +1187,17 @@ export function Panel({
       for await (const event of stream) {
         if (event.type === "token") {
           answerText += event.value;
-          updateLast((m) => ({ ...m, pending: false, text: m.text + event.value }));
+          updateLast((m) => settle({ ...m, pending: false, text: m.text + event.value }));
+        } else if (event.type === "reasoning") {
+          updateLast((m) => ({ ...m, trail: withReasoning(m.trail, event.value) }));
         } else if (event.type === "action") {
           recordAction({ id: event.id, title: event.title, status: event.status });
           emit("action", { id: event.id, title: event.title, status: event.status });
         } else if (event.type === "confirm") {
           updateLast((m) => ({
-            ...m,
+            ...settle(m),
             pending: false,
+            trail: withStep(m.trail, event.id),
             actions: [
               ...(m.actions ?? []).filter((a) => a.id !== event.id),
               {
@@ -1025,22 +1223,24 @@ export function Panel({
           unsupportedTerms = event.unsupportedTerms;
           updateLast((m) => ({ ...m, unsupportedTerms: event.unsupportedTerms }));
         } else if (event.type === "refusal") {
-          updateLast((m) => ({ ...m, pending: false, refused: true, text: copy.refusal }));
+          updateLast((m) => settle({ ...m, pending: false, refused: true, text: copy.refusal }));
           emit("refusal", { question, reason: event.reason });
         } else if (event.type === "clarify") {
           clarified = true;
           const clarify = { question: event.question, options: event.options };
-          updateLast((m) => ({ ...m, pending: false, text: event.question, clarify }));
+          updateLast((m) => settle({ ...m, pending: false, text: event.question, clarify }));
           emit("clarify", { question, asked: event.question, options: event.options });
         } else if (event.type === "done") {
           // The stream is over, whatever it carried. An answer with no text
           // at all — every step went to a tool and nothing was written —
           // would otherwise keep its typing indicator for good.
-          updateLast((m) => ({
-            ...m,
-            pending: false,
-            ...(event.messageId ? { id: event.messageId } : {}),
-          }));
+          updateLast((m) =>
+            settle({
+              ...m,
+              pending: false,
+              ...(event.messageId ? { id: event.messageId } : {}),
+            }),
+          );
           if (event.conversationId) {
             setActiveConvId(event.conversationId);
             storeConv(projectKey, event.conversationId);
@@ -1429,28 +1629,17 @@ export function Panel({
                         class={`msg ${m.role}${m.refused ? " refused" : ""}`}
                         part="message"
                       >
-                        {m.actions?.some((a) => !isOpenCard(a)) ? (
-                          <div class="actions" part="actions">
-                            {m.actions
-                              .filter((a) => !isOpenCard(a))
-                              .map((a) => (
-                                <div key={a.id} class={`action ${a.status}`} part="action">
-                                  <span class="action-glyph">
-                                    <StepGlyph status={a.status} />
-                                  </span>
-                                  <span class="action-title" part="action-title">
-                                    {a.status === "running" ? `${a.title}…` : a.title}
-                                  </span>
-                                  <span
-                                    class={`action-status${statusIsQuiet(a.status) ? " sr-only" : ""}`}
-                                    part="action-status"
-                                    role="status"
-                                  >
-                                    {actionStatusCopy(a, copy)}
-                                  </span>
-                                </div>
-                              ))}
-                          </div>
+                        {activityGroups(m).length > 0 ? (
+                          <Activity
+                            message={m}
+                            copy={copy}
+                            onToggle={(open) =>
+                              updateAt(i, (cur) => ({
+                                ...cur,
+                                activityOpen: open === activityAutoOpen(cur) ? undefined : open,
+                              }))
+                            }
+                          />
                         ) : null}
                         {showBubble(m) ? (
                           <div

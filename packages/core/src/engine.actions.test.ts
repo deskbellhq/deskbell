@@ -127,6 +127,28 @@ const result: GenerationPart = {
 };
 
 describe("createEngine — tools (spec: mcp-actions)", () => {
+  it("passes the model's reasoning through as it arrives, outside the holds (spec: activity-disclosure)", async () => {
+    const { events } = await run(
+      [chunk("c1")],
+      [
+        { type: "reasoning", value: "The visitor asks about " },
+        { type: "reasoning", value: "an order; call the tool." },
+        call,
+        result,
+        "Shipped.\nSOURCES: T1",
+      ],
+    );
+    const kinds = events.map((e) => e.type);
+    expect(kinds.slice(0, 4)).toEqual(["reasoning", "reasoning", "action", "action"]);
+    expect(
+      events
+        .filter((e): e is Extract<AnswerEvent, { type: "reasoning" }> => e.type === "reasoning")
+        .map((e) => e.value)
+        .join(""),
+    ).toBe("The visitor asks about an order; call the tool.");
+    expect(text(events)).toBe("Shipped.");
+  });
+
   it("extends the prompt only when tools are present", async () => {
     const seen: Seen = {};
     await run([chunk("c1")], ["Fine.\nSOURCES: 1"], {}, seen);

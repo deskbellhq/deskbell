@@ -351,6 +351,13 @@ export type AnswerEvent =
       expiresAt?: string;
     }
   /**
+   * A piece of the model's own reasoning, as the provider summarises it
+   * (spec: activity-disclosure): what it thought before writing or calling
+   * a tool. Deltas, in order; sent only by a deployment that chose to show
+   * reasoning. Never stored, so a replayed message carries none.
+   */
+  | { type: "reasoning"; value: string }
+  /**
    * The answer named things the documentation does not contain (spec:
    * answer-verification): bold names and identifiers found neither in the
    * retrieved blocks nor anywhere in the corpus. Emitted after `citations`

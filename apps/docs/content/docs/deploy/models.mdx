@@ -157,6 +157,25 @@ reject the request with a 400, and the first question after the change shows
 that error. Deskbell passes the value through as it is and leaves the choice
 to the model, so check the provider's model page before setting it.
 
+## Showing the reasoning
+
+The widget folds what the model did before it answered under one line above
+the answer: the tools it called, and, when a deployment allows it, the
+reasoning it wrote on the way. `DESKBELL_SHOW_REASONING=true` streams that
+reasoning to the widget; the default is off and the ask endpoint drops it
+whatever the model emitted.
+
+Read some of it before turning it on. Reasoning is written for the model: it
+quotes the retrieved context, names the tools and the refusal rule, and
+describes the visitor in the third person. On `openai/*` the flag also asks
+the model for a reasoning summary, which is the only form in which those
+models emit reasoning text, and the summary is billed as output. Other
+providers send whatever they already emit; a model that reasons silently
+shows nothing, and the fold then holds only the tool calls.
+
+The reasoning is never stored: a conversation opened again shows its tool
+calls and not the thinking between them.
+
 ## Injection resistance varies by model
 
 The system prompt tells the model that retrieved context is data and never

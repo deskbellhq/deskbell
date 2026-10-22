@@ -453,11 +453,99 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     const status = step?.querySelector('[part="action-status"]');
     expect(status?.textContent).toBe("Done");
     expect(status?.classList.contains("sr-only")).toBe(true);
-    // Steps come before the answer, and a tool run is not a source.
-    expect(msg?.firstElementChild?.getAttribute("part")).toBe("actions");
+    // Steps come before the answer, folded, and a tool run is not a source.
+    expect(msg?.firstElementChild?.getAttribute("part")).toBe("activity");
+    expect(msg?.firstElementChild?.querySelector('[part="actions"]')).not.toBeNull();
     expect(host.querySelector('[part="citations"]')).toBeNull();
     expect(host.querySelector('[part~="citation-kind-action"]')).toBeNull();
     expect(seen).toEqual(["running", "succeeded"]);
+  });
+
+  it("folds the steps once the answer starts and says how long it worked (spec: activity-disclosure)", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    fake.ask.mockImplementation(async function* () {
+      yield { type: "action", id: "act_1", title: "Look up your order", status: "running" };
+      yield { type: "action", id: "act_1", title: "Look up your order", status: "succeeded" };
+      yield { type: "action", id: "act_2", title: "Check the carrier", status: "running" };
+      await gate;
+      yield { type: "action", id: "act_2", title: "Check the carrier", status: "succeeded" };
+      yield* answer("Shipped yesterday.");
+    });
+    const { host } = mount({ mode: "inline" });
+    await sendQuestion("where is my order?");
+    await screen.findByText("Check the carrier…");
+    const group = host.querySelector('[part="activity"]') as HTMLDetailsElement;
+    // Open while the model works, with a busy summary and the lines live inside.
+    expect(group.open).toBe(true);
+    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("Thinking…");
+    expect(group.querySelectorAll('[part="action"]')).toHaveLength(2);
+    release();
+    await screen.findByText("Shipped yesterday.");
+    // Folded once the answer started; the summary counts the steps and the wait.
+    expect(group.open).toBe(false);
+    const summary = group.querySelector('[part="activity-summary"]')?.textContent ?? "";
+    expect(summary).toMatch(/^Worked for \d+s · 2 steps$/);
+    expect(group.querySelectorAll('[part="action"]')).toHaveLength(2);
+  });
+
+  it("shows reasoning as blocks between the step lines, in order, and never as a source", async () => {
+    fake.ask.mockImplementation(() =>
+      stream([
+        { type: "reasoning", value: "The visitor asks about " },
+        { type: "reasoning", value: "an order. I will look it up." },
+        { type: "action", id: "act_1", title: "Look up your order", status: "running" },
+        { type: "action", id: "act_1", title: "Look up your order", status: "succeeded" },
+        { type: "reasoning", value: "It shipped; answer plainly." },
+        ...answer("Shipped yesterday."),
+      ]),
+    );
+    const { host } = mount({ mode: "inline" });
+    await sendQuestion("where is my order?");
+    await screen.findByText("Shipped yesterday.");
+    const group = host.querySelector('[part="activity"]');
+    const parts = Array.from(group?.querySelector(".activity-body")?.children ?? []).map((el) =>
+      el.getAttribute("part"),
+    );
+    expect(parts).toEqual(["reasoning", "actions", "reasoning"]);
+    const blocks = group?.querySelectorAll('[part="reasoning"]');
+    expect(blocks?.[0]?.textContent).toBe("The visitor asks about an order. I will look it up.");
+    expect(blocks?.[1]?.textContent).toBe("It shipped; answer plainly.");
+    expect(group?.querySelector('[part="activity-summary"]')?.textContent).toMatch(
+      /^Worked for \d+s · 1 steps$/,
+    );
+    expect(host.querySelector('[part="citations"]')).toBeNull();
+  });
+
+  it("hides the typing dots while reasoning streams, and shows a fold with no steps", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    fake.ask.mockImplementation(async function* () {
+      yield { type: "reasoning", value: "Thinking about the docs." };
+      await gate;
+      yield* answer("Here is the answer.");
+    });
+    const { host } = mount({ mode: "inline" });
+    await sendQuestion("how do I reset my password?");
+    await screen.findByText("Thinking about the docs.");
+    expect(host.querySelector('[part="typing"]')).toBeNull();
+    release();
+    await screen.findByText("Here is the answer.");
+    const summary = host.querySelector('[part="activity-summary"]')?.textContent ?? "";
+    expect(summary).toMatch(/^Worked for \d+s$/);
+    expect(host.querySelector('[part="actions"]')).toBeNull();
+  });
+
+  it("renders no fold on a plain answer", async () => {
+    fake.ask.mockImplementation(() => stream(answer("Just an answer.")));
+    const { host } = mount({ mode: "inline" });
+    await sendQuestion("hello?");
+    await screen.findByText("Just an answer.");
+    expect(host.querySelector('[part="activity"]')).toBeNull();
   });
 
   it("shows no typing dots while a step is running, and again once it finished", async () => {
@@ -634,5 +722,9 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     const expired = host.querySelector('[part="action"].expired, [part="action"].pending_approval');
     expect(expired?.querySelector('[part="action-status"]')?.textContent).toBe("Expired");
     expect(expired?.querySelector('[part="action-buttons"]')).toBeNull();
+    // A replayed message has no timing, so the fold counts its steps only, and starts closed.
+    const group = host.querySelector('[part="activity"]') as HTMLDetailsElement;
+    expect(group.open).toBe(false);
+    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 steps");
   });
 });

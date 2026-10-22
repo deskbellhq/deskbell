@@ -342,7 +342,22 @@ a.pill:hover { background: var(--_surface-active); color: var(--_accent); }
 .pill-glyph { grid-row: 1 / span 2; color: var(--_text-muted); }
 .pill-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill-label { font-size: 11px; line-height: 1.2; color: var(--_text-muted); }
-.actions { display: flex; flex-direction: column; gap: 4px; max-width: 85%; font-size: 12.5px; }
+.activity { max-width: 85%; font-size: 12.5px; }
+.activity-summary {
+  list-style: none; display: flex; align-items: center; gap: 7px; min-height: 20px;
+  cursor: pointer; color: var(--_text-secondary); user-select: none; border-radius: 6px;
+}
+.activity-summary::-webkit-details-marker { display: none; }
+.activity-summary:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+.activity-glyph svg { transition: transform .15s; }
+.activity[open] .activity-glyph svg { transform: rotate(90deg); }
+.activity-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-body { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-left: 21px; }
+.reasoning {
+  border-left: 2px solid var(--_border); padding: 2px 0 2px 10px; color: var(--_text-muted);
+  white-space: pre-wrap; overflow-wrap: break-word; line-height: 1.45;
+}
+.actions { display: flex; flex-direction: column; gap: 4px; }
 .action { display: flex; align-items: center; gap: 7px; min-height: 20px; min-width: 0; }
 .action-glyph {
   flex: none; width: 14px; height: 14px; display: inline-flex; align-items: center;
