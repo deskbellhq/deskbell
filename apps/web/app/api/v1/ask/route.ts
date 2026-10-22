@@ -475,6 +475,10 @@ export async function POST(request: Request) {
             if (event.type === "refusal") {
               refused = true;
               signal.refusalReason = event.reason;
+              // A refusal persists no answer text, even when the model wrote
+              // a sentence before refusing: the widget replaced that sentence
+              // with the refusal copy, and the replay must show the same.
+              answerText = "";
             }
             if (event.type === "clarify") {
               clarified = true;

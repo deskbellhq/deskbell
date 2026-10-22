@@ -361,6 +361,39 @@ Do not refer to block numbers anywhere else in the answer; the reader cannot see
 /** The sentinel the system prompt above demands for a refusal. */
 export const REFUSAL_SENTINEL = "NO_GROUNDING";
 
+/** The sentinel as a word of its own, wherever it stands in the text. */
+const LATE_SENTINEL = new RegExp(`(?<![A-Za-z0-9_])${REFUSAL_SENTINEL}(?![A-Za-z0-9_])`);
+
+/**
+ * Whether text that has already left the start-anchored hold carries the
+ * sentinel after all. The contract asks for the sentinel alone, but a model
+ * sometimes writes a sentence first — "The documentation does not cover
+ * this. NO_GROUNDING" — and a visitor must not read the word. It is a
+ * refusal either way: the model declined to answer from the context, and the
+ * prose before it was the model talking itself into that.
+ */
+export function hasLateSentinel(text: string): boolean {
+  return LATE_SENTINEL.test(text);
+}
+
+/**
+ * Hold back the end of `text` while it could still grow into the sentinel:
+ * the longest tail that is a proper prefix of it, standing at a word
+ * boundary. "…the answer is NO" holds "NO" for one more token; "…NOW" holds
+ * nothing, since "NOW" is not a prefix; "…ANNO" holds nothing, since the
+ * "NO" there continues a word.
+ */
+export function splitSentinelTail(text: string): { emit: string; hold: string } {
+  const longest = Math.min(text.length, REFUSAL_SENTINEL.length - 1);
+  for (let n = longest; n >= 1; n--) {
+    const start = text.length - n;
+    if (!REFUSAL_SENTINEL.startsWith(text.slice(start))) continue;
+    if (start > 0 && /[A-Za-z0-9_]/.test(text[start - 1] as string)) continue;
+    return { emit: text.slice(0, start), hold: text.slice(start) };
+  }
+  return { emit: text, hold: "" };
+}
+
 /**
  * The grounding contract when tools are in play (spec: mcp-actions). The
  * opening rule of SYSTEM_PROMPT — answer only from the context, refuse
@@ -655,7 +688,10 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
       // several tokens, so "NO", "NO_GROUND"… must not leak to the client and
       // get persisted as answer text. The sources hold is anchored to the END:
       // only the final line can name the blocks used, so text after the last
-      // newline is withheld until the stream closes.
+      // newline is withheld until the stream closes. Once the start hold has
+      // released, the end of the text is still watched for the sentinel: a
+      // model that writes a sentence and then the word has refused all the
+      // same, and the word must not reach the visitor.
       //
       // A third hold, also start-anchored, exists only with clarification on:
       // a stream that opens with CLARIFY is held to the end and parsed, since
@@ -781,9 +817,25 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
           continue;
         }
         if (!holding) {
-          const split = splitSourcesTail(tail + token);
-          tail = split.hold;
-          if (split.emit) yield say(split.emit);
+          const pending = tail + token;
+          if (hasLateSentinel(pending)) {
+            // A refusal after prose. What was already sent is withdrawn by the
+            // refusal event; what is held is dropped here.
+            refused = true;
+            tail = "";
+            continue;
+          }
+          const split = splitSourcesTail(pending);
+          if (split.hold) {
+            // The last line may be a sources line; nothing before a newline
+            // can still become the sentinel.
+            tail = split.hold;
+            if (split.emit) yield say(split.emit);
+          } else {
+            const guarded = splitSentinelTail(split.emit);
+            tail = guarded.hold;
+            if (guarded.emit) yield say(guarded.emit);
+          }
           continue;
         }
         buffer += token;
