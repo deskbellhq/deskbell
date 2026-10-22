@@ -11,16 +11,17 @@ embedded chunks. The other kind of source,
 
 ## Configuration
 
-The Sources page asks for two things:
+The Sources page asks for three things:
 
 | Setting | Default | What it does |
 |---|---|---|
 | Start URL | required | Where the crawl begins. The sitemap is discovered from its origin |
 | Page limit | `50` | Hard ceiling for this source, up to 10,000 |
+| Only under paths | empty | Path prefixes the crawl is limited to, such as `/docs, /guides`. Empty crawls the whole site |
 
-The connector also accepts `includePaths`, a list of path prefixes that
-restricts the crawl to part of a site, for callers that create sources from
-code.
+A prefix matches the start of a page's path, so `/docs` also covers
+`/docs-archive`; write `/docs/` to mean the section alone. Callers that create
+sources from code pass the same list as `includePaths`.
 
 ## How it finds pages
 

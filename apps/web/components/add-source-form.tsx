@@ -26,6 +26,15 @@ export function AddSourceForm() {
         <Label htmlFor="source-max-pages">Max pages</Label>
         <Input id="source-max-pages" name="maxPages" type="number" min={1} defaultValue={50} />
       </div>
+      <div className="flex min-w-64 flex-1 flex-col gap-1.5">
+        <Label htmlFor="source-include-paths">Only under paths</Label>
+        <Input
+          id="source-include-paths"
+          name="includePaths"
+          placeholder="/docs, /guides (optional)"
+          autoComplete="off"
+        />
+      </div>
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "Add source"}
       </Button>

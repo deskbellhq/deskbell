@@ -11,6 +11,7 @@ import { checkRole, requireRole } from "@/lib/auth/session";
 import { enqueueIngestSource, enqueueReindexEmbeddings } from "@/lib/boss";
 import { getDb } from "@/lib/db";
 import { getDefaultProject } from "@/lib/org";
+import { parseIncludePaths } from "@/lib/source-paths";
 
 export async function addDocsSource(
   _prev: { error?: string } | undefined,
@@ -21,10 +22,11 @@ export async function addDocsSource(
   const url = String(formData.get("url") ?? "").trim();
   const maxPagesRaw = String(formData.get("maxPages") ?? "").trim();
   const maxPages = maxPagesRaw ? Number(maxPagesRaw) : 50;
+  const includePaths = parseIncludePaths(String(formData.get("includePaths") ?? ""));
 
   const connector = connectorRegistry.get("docs-crawler");
   if (!connector) return { error: "docs-crawler connector is not registered" };
-  const parsed = connector.configSchema.safeParse({ url, maxPages });
+  const parsed = connector.configSchema.safeParse({ url, maxPages, includePaths });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid source config" };
   }
