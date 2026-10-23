@@ -1,6 +1,6 @@
 {
   "name": "@deskbell/shared",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Wire contracts and the widget configuration descriptor shared by the Deskbell server, widget and SDK.",
   "license": "MIT",
   "homepage": "https://deskbell.dev/docs/developer/api",

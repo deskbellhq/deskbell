@@ -1,5 +1,12 @@
 # @deskbell/sdk
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [29b3fc8]
+  - @deskbell/shared@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @deskbell/widget-react
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [29b3fc8]
+- Updated dependencies [b618065]
+  - @deskbell/widget@0.2.0
+  - @deskbell/shared@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes
