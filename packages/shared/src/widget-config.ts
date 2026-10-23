@@ -142,6 +142,7 @@ export const COPY_KEYS = [
   "activityDone",
   "activitySteps",
   "activityStep",
+  "feedbackPrompt",
   "reasoning",
 ] as const;
 
@@ -306,6 +307,10 @@ export const PARTS = [
   "md-list",
   "md-code",
   "md-table",
+  "sidebar-head",
+  "sidebar-title",
+  "citations-label",
+  "feedback-label",
   "md-link",
   "header-actions",
   "disclaimer",

@@ -1,7 +1,7 @@
 ---
 title: Theming
 description: Restyle the widget from the outside with CSS custom properties for colour, ::part() selectors for shape and layout, and named slots for your own markup, plus the side-panel recipe.
-updated: 2026-09-21
+updated: 2026-10-23
 ---
 
 Colour is a token, shape is a part, and a region you want to own outright is a
@@ -45,7 +45,9 @@ A cited [written answer](/knowledge/written-answers) is labelled by the widget
 itself: a pen glyph, the question, and a second line reading "Written answer".
 The line is the `writtenAnswer` copy key, so rename or translate it with
 `copy`, and it carries the `citation-label` part for styling. The pill's own
-part is `citation-kind-corrections`.
+part is `citation-kind-corrections`. The heading over the pills is the
+`sources` copy key, in the `citations-label` part; write `{n}` in it to show
+the number of sources, as in `"Sources · {n}"`.
 
 ## Slots
 
