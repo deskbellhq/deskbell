@@ -115,6 +115,11 @@ export const RETRIEVAL_DEFAULTS = {
   // usually on the short page. Measured +0.09 recall@8 on the private tuning
   // set at no cost to answer quality (spec: retrieval-defaults).
   maxPerDocument: 1,
+  // Chunks the top-ranked document may keep on top of the cap; 1 = off. A
+  // long page answers a question about itself only when enough of it arrives.
+  // Measured at 3 on the private set: Factuality +7 points over two judged
+  // samples, recall@8 unchanged, input tokens +15% (spec: top-document-depth).
+  topDocumentChunks: 3,
   order: "fused",
   // The HNSW index is approximate. pgvector's own default (40) lost 0.06
   // recall@8 against an exact scan on the private tuning set; 100 recovered
