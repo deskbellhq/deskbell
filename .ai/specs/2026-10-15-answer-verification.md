@@ -32,9 +32,14 @@ it is saying does not exist. The extractor then takes bold spans and inline
 code spans without whitespace (identifiers, flags, environment variables).
 Fenced code blocks are stripped first. A candidate is kept when it is 3 to 80
 characters, contains a letter, is at most eight words, is not a URL, path or
-address, and carries no sentence punctuation; trailing colons and periods are
-dropped, and a short stoplist of label words (note, tip, yes, no, important,
-example, warning, step) is skipped. A path written with arrows or `>`
+address, and carries no sentence punctuation; a trailing period is dropped,
+and a short stoplist of label words (note, tip, yes, no, important, example,
+warning, step) is skipped. A bold span that ends in a colon is a heading for
+what follows ("**Open the attribute:** select Edit"), not a name the answer
+asserts, and is skipped; a name used as a label keeps the colon outside the
+bold and is checked as usual. Without this, a style that asks for bold step
+titles has every title flagged that the documentation does not phrase the
+same way. A path written with arrows or `>`
 ("Settings → Billing") is checked whole and by part. Candidates are
 deduplicated by normalized form, kept in first-seen order, and capped at
 twelve per answer. Double-quoted spans are not candidates yet: the model

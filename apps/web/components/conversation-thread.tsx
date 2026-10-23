@@ -27,7 +27,7 @@ import { feedbackReasonSentence } from "@/lib/gap-task";
 import { isWeakAnswer, readGapsConfig } from "@/lib/gaps-signal";
 import { avatarClass, initialOf, relativeTime } from "@/lib/inbox";
 import { formatLatency } from "@/lib/latency";
-import { refusalLabel, retrievalSummary } from "@/lib/refusal-label";
+import { refusalLabel, retrievalSummary, unsupportedTitle } from "@/lib/refusal-label";
 import { threadStatus, threadStatusDetail } from "@/lib/thread-status";
 
 // The engine cites per retrieved chunk, so one document can appear repeatedly;
@@ -244,14 +244,7 @@ export async function ConversationThread({
                       <Badge
                         variant="outline"
                         className="w-fit text-muted-foreground"
-                        title={[
-                          `Named something the documentation does not contain: ${(
-                            message.unsupportedTerms ?? []
-                          ).join(", ")}`,
-                          signal,
-                        ]
-                          .filter(Boolean)
-                          .join(" — ")}
+                        title={unsupportedTitle(message.unsupportedTerms ?? [], signal)}
                       >
                         <TriangleAlert className="text-amber-500 dark:text-amber-400" />
                         Unsupported name{(message.unsupportedTerms?.length ?? 0) > 1 ? "s" : ""}

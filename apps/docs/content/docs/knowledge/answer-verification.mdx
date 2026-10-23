@@ -54,9 +54,12 @@ longer answers are not worth it to you, turn it off and measure that too.
 
 Bold spans and single-token code spans (identifiers, flags, environment
 variables). Code blocks are skipped, and so are labels such as "Note", links,
-paths, addresses and anything that reads as a sentence. A path written with
-arrows, "Settings → Billing", is checked whole and by part. At most twelve
-names per answer.
+paths, addresses and anything that reads as a sentence. A bold span that ends
+in a colon is a heading for what follows ("**Open the attribute:** select
+Edit") and is not checked; a name used as a label is checked when the colon
+sits outside the bold ("**Export rules**: choose a format"). A path written
+with arrows, "Settings → Billing", is checked whole and by part. At most
+twelve names per answer.
 
 A name is excluded before any lookup when the visitor typed it, in this message
 or an earlier one: a name the visitor supplied and the model echoed was not
