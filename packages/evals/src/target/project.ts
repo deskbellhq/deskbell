@@ -143,6 +143,9 @@ export async function createProjectTarget(options: ProjectTargetOptions): Promis
   // is what tells two runs apart when it changes.
   const clarify = clarifyFromEnv(process.env);
   const verify = verifyFromEnv(process.env);
+  // The project's own style paragraph (spec: answer-style) is part of the
+  // prompt the product sends, so a run replays it and the hash records it.
+  const answerStyle = project.answerStyle;
   const engine = createEngine(
     {
       vectorStore: createVectorStore(db),
@@ -181,6 +184,7 @@ export async function createProjectTarget(options: ProjectTargetOptions): Promis
     orgId: project.orgId,
     projectId: project.id,
     name: `project:${project.id}`,
+    answerStyle,
     retrievalOnly: options.retrievalOnly,
     onUnsupportedTerms: options.onUnsupportedTerms,
   });
@@ -190,7 +194,7 @@ export async function createProjectTarget(options: ProjectTargetOptions): Promis
     retrievalConfig,
     // From the module that built the engine: the harness cannot read a prompt
     // back out of one, and a hash guessed elsewhere would be a guess.
-    promptHash: promptFingerprint(buildSystemPrompt({ clarify, verify })),
+    promptHash: promptFingerprint(buildSystemPrompt({ clarify, verify, answerStyle })),
     // Bound to the pool this target already opened, so resolving labels costs
     // no second connection and cannot outlive the target.
     resolveLabels: (dataset: Dataset) => resolveUrlLabels(db, project.id, dataset),

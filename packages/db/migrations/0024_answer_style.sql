@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "answer_style" text DEFAULT '' NOT NULL;

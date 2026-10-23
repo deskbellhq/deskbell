@@ -1,0 +1,56 @@
+---
+title: Answer style
+description: A paragraph of your own on how the assistant should sound — tone, length, address, language — set per project in the dashboard and added to every answer's instruction.
+updated: 2026-10-23
+---
+
+The assistant answers from your content under a fixed instruction: use only
+the retrieved pages, cite what you used, refuse when nothing fits. That
+instruction decides *what* an answer may say. **Settings → Answer style** is
+where you decide how it sounds.
+
+## What goes there
+
+A short paragraph, written to the model, in any language:
+
+```text
+Answer in two or three short sentences. Address the visitor as "you".
+Use plain words and no exclamation marks. Answer in the visitor's language.
+```
+
+Tone, length, how the visitor is addressed, which language to answer in, a
+house rule about formatting — anything that would be true of every answer.
+Up to 2,000 characters. Leave it empty and the assistant keeps the default
+voice.
+
+It is per project: every project in a deployment has its own, and a
+deployment with one project sets it once.
+
+## What does not go there
+
+Knowledge. The paragraph is added *after* the rules that keep answers grounded
+in your content, and it does not become a source: a fact written here is never
+cited, never shows on the Conversations page as a citation, and never counts
+on the Gaps page. Put facts in your sources, or in a
+[written answer](/knowledge/written-answers), where they get cited like any
+other page.
+
+Instructions that fight the grounding rules — "always answer, never say you
+don't know" — are read by the model like any other, and they cost you exactly
+what they sound like they cost. The refusal, the sources line and
+[answer verification](/knowledge/answer-verification) still run; a style that
+argues with them makes answers worse, not freer.
+
+## When it applies
+
+Saving takes effect on the next answer. A conversation that is already open
+follows the new style from its next turn, since the instruction is built per
+question. There is no restart and no re-indexing.
+
+## Measuring it
+
+The style is part of the instruction the model reads, so it is part of what
+[the evaluation harness](/operate/evaluation) measures: a run against a project
+replays the project's style, and the prompt fingerprint in the report changes
+when the style does. Before and after is the way to know whether "be brief"
+cost you correct answers.
