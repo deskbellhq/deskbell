@@ -19,6 +19,7 @@ import {
   Hourglass,
   KeyRound,
   type LucideIcon,
+  MessageSquareText,
   Palette,
   SearchX,
   Users,
@@ -34,6 +35,7 @@ const accountGroup: SettingsItem[] = [
 ];
 const workspaceGroup: SettingsItem[] = [
   { title: "Members", url: "/settings/members", icon: Users },
+  { title: "Answer style", url: "/settings/answer-style", icon: MessageSquareText },
   { title: "Gaps", url: "/settings/gaps", icon: SearchX },
   { title: "Data retention", url: "/settings/retention", icon: Hourglass },
 ];

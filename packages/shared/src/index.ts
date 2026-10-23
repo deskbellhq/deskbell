@@ -85,6 +85,16 @@ export const ConversationRetentionDaysSchema = z.preprocess(
 );
 
 /**
+ * Answer style (spec: answer-style): the project's own instruction for how
+ * the assistant should sound, appended to the grounding contract on every
+ * answer. Empty means the contract as shipped. Trimmed so a blank textarea
+ * stores nothing, and capped so the instruction stays a paragraph rather
+ * than a second prompt.
+ */
+export const ANSWER_STYLE_MAX_LENGTH = 2000;
+export const AnswerStyleSchema = z.string().trim().max(ANSWER_STYLE_MAX_LENGTH);
+
+/**
  * Parse a textarea into ignored terms: one per line or comma-separated. A term
  * may contain spaces (an organisation's name usually does), so only newlines
  * and commas separate.

@@ -438,6 +438,9 @@ export async function POST(request: Request) {
             history,
             locale: parsed.data.locale,
             ignoredTerms,
+            // The project's voice (spec: answer-style); a row field, so a
+            // save on the settings page reaches the next answer.
+            answerStyle: project.answerStyle,
             ...(requestTools && requestTools.tools.length > 0 ? { tools: requestTools.tools } : {}),
             ...(resume ? { resume } : {}),
             onAction,

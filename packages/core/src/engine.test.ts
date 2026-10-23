@@ -319,6 +319,17 @@ describe("buildSystemPrompt", () => {
       `${SYSTEM_PROMPT}\n\n${CLARIFY_PROMPT}\n\n${VERIFY_PROMPT}`,
     );
   });
+
+  it("is byte-identical with a blank answer style, and appends a set one last", () => {
+    // A project that never set a style must hash like one that cleared it.
+    expect(buildSystemPrompt({ answerStyle: undefined })).toBe(SYSTEM_PROMPT);
+    expect(buildSystemPrompt({ answerStyle: "" })).toBe(SYSTEM_PROMPT);
+    expect(buildSystemPrompt({ answerStyle: "  \n " })).toBe(SYSTEM_PROMPT);
+    expect(buildSystemPrompt({ answerStyle: " Be brief. " })).toBe(`${SYSTEM_PROMPT}\n\nBe brief.`);
+    expect(buildSystemPrompt({ clarify: true, verify: true, answerStyle: "Be brief." })).toBe(
+      `${SYSTEM_PROMPT}\n\n${CLARIFY_PROMPT}\n\n${VERIFY_PROMPT}\n\nBe brief.`,
+    );
+  });
 });
 
 describe("createEngine — answer verification (spec: answer-verification)", () => {

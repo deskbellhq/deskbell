@@ -19,6 +19,7 @@ import {
   Hourglass,
   KeyRound,
   LayoutDashboard,
+  MessageSquareText,
   MessagesSquare,
   Palette,
   PenLine,
@@ -119,6 +120,12 @@ export function CommandPalette({ role }: { role: string }) {
             <Code2 />
             Install
           </CommandItem>
+          {isAdmin && (
+            <CommandItem onSelect={() => go("/settings/answer-style")}>
+              <MessageSquareText />
+              Answer style
+            </CommandItem>
+          )}
           {isAdmin && (
             <CommandItem onSelect={() => go("/settings/retention")}>
               <Hourglass />

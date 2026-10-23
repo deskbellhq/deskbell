@@ -104,6 +104,15 @@ export const projects = pgTable(
     /** What that run removed. */
     conversationsPurgedCount: integer("conversations_purged_count").notNull().default(0),
     /**
+     * How the assistant should sound (spec: answer-style): the project's own
+     * paragraph, appended to the grounding contract on every answer. Empty
+     * means the contract as shipped. Validated with AnswerStyleSchema on
+     * write. Read by the ask endpoint only; the public config endpoint never
+     * serves it, since the widget has no use for it and a visitor should not
+     * read the operator's instructions.
+     */
+    answerStyle: text("answer_style").notNull().default(""),
+    /**
      * Widget appearance authored in the dashboard and served to the widget by
      * GET /api/v1/config. Validated with WidgetAppearanceSchema on write, so
      * client-only options (project key, api url, branding) can never be stored

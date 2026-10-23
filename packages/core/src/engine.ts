@@ -178,6 +178,13 @@ export interface AskInput {
    */
   ignoredTerms?: string[];
   /**
+   * The project's own instruction for how the answer should sound (spec:
+   * answer-style), appended to the grounding contract last. Per call rather
+   * than per engine: one engine serves every project, and the style is a
+   * row on the project. Empty or absent leaves the prompt byte-identical.
+   */
+  answerStyle?: string;
+  /**
    * Called once per checked answer with the names tested and those found
    * nowhere. Not called when verification is off, when the turn is not an
    * answer, or when the corpus lookup failed: "unchecked" is the absence of
@@ -446,6 +453,8 @@ export interface SystemPromptOptions {
   /** A clarifying question was already asked in this thread. */
   asked?: boolean;
   verify?: boolean;
+  /** The project's style paragraph (spec: answer-style); blank appends nothing. */
+  answerStyle?: string;
 }
 
 /**
@@ -458,6 +467,11 @@ export function buildSystemPrompt(opts: SystemPromptOptions = {}): string {
   let prompt = opts.base ?? SYSTEM_PROMPT;
   if (opts.clarify) prompt = `${prompt}\n\n${opts.asked ? CLARIFY_ONCE_PROMPT : CLARIFY_PROMPT}`;
   if (opts.verify) prompt = `${prompt}\n\n${VERIFY_PROMPT}`;
+  // Last, so the style shades the contract without a word of it moving
+  // (spec: answer-style). Trimmed here as well as on write: an engine fed
+  // whitespace by another host must not send a prompt that hashes differently.
+  const style = opts.answerStyle?.trim();
+  if (style) prompt = `${prompt}\n\n${style}`;
   return prompt;
 }
 
@@ -728,6 +742,7 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
             clarify,
             asked,
             verify,
+            answerStyle: input.answerStyle,
           }) + (hasTools ? TOOLS_PROMPT : ""),
         context,
         message: input.message,
