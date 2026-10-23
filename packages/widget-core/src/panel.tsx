@@ -141,6 +141,8 @@ const DEFAULT_COPY = {
   actionExpired: "Expired",
   activityDone: "Worked for {s}s",
   activitySteps: "{n} steps",
+  activityStep: "{n} step",
+  feedbackPrompt: "",
   reasoning: "Reasoning",
 };
 
@@ -491,7 +493,7 @@ function Activity({
     ? `${copy.thinking}…`
     : [
         seconds === null ? "" : fill(copy.activityDone, { s: seconds }),
-        steps > 0 ? fill(copy.activitySteps, { n: steps }) : "",
+        steps > 0 ? fill(steps === 1 ? copy.activityStep : copy.activitySteps, { n: steps }) : "",
       ]
         .filter(Boolean)
         .join(" · ");
@@ -1674,7 +1676,9 @@ export function Panel({
                         ) : null}
                         {m.citations && !m.refused && uniqueCitations(m.citations).length > 0 ? (
                           <div class="citations" part="citations">
-                            <span class="citations-label">{copy.sources}</span>
+                            <span class="citations-label" part="citations-label">
+                              {fill(copy.sources, { n: uniqueCitations(m.citations).length })}
+                            </span>
                             <div class="pills">
                               {uniqueCitations(m.citations).map((c) =>
                                 c.url ? (
@@ -1776,6 +1780,11 @@ export function Panel({
                         m.text &&
                         config.feedback ? (
                           <div class="feedback" part="feedback">
+                            {copy.feedbackPrompt ? (
+                              <span class="feedback-label" part="feedback-label">
+                                {copy.feedbackPrompt}
+                              </span>
+                            ) : null}
                             <button
                               type="button"
                               class={`fb${m.feedback === "up" ? " on" : ""}`}

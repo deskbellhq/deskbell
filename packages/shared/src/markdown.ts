@@ -38,13 +38,34 @@ export type Block =
   | { t: "ol"; start: number; items: ListItem[] }
   | { t: "code"; lang: string; v: string }
   | { t: "quote"; c: Block[] }
-  | { t: "hr" };
+  | { t: "hr" }
+  | {
+      t: "table";
+      align: Array<"left" | "center" | "right" | null>;
+      head: Inline[][];
+      rows: Inline[][][];
+    };
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/;
 const RULE = /^ {0,3}([-*_])([ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^ {0,3}>[ \t]?(.*)$/;
 const LIST = /^( *)([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
+/** A GFM table's separator row: cells of dashes, optionally colon-aligned. */
+const TABLE_SEP = /^ {0,3}\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+
+/** Cells of one table row; a leading and trailing pipe are optional. */
+function tableCells(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
+  return s.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+}
+
+/** A table starts only where a header row with a pipe is followed by its separator. */
+function startsTable(line: string, next: string | undefined): boolean {
+  return line.includes("|") && next !== undefined && next.includes("|") && TABLE_SEP.test(next);
+}
 
 /**
  * Only these link targets are followed. Everything else (`javascript:`,
@@ -95,6 +116,35 @@ function parseBlocks(lines: string[]): Block[] {
         i++;
       }
       out.push({ t: "code", lang: fence[2] ?? "", v: body.join("\n") });
+      continue;
+    }
+
+    if (startsTable(line, lines[i + 1])) {
+      const head = tableCells(line);
+      const align = tableCells(lines[i + 1] ?? "").map((c) =>
+        c.startsWith(":") && c.endsWith(":")
+          ? "center"
+          : c.endsWith(":")
+            ? "right"
+            : c.startsWith(":")
+              ? "left"
+              : null,
+      );
+      i += 2;
+      const rows: Inline[][][] = [];
+      while (i < lines.length) {
+        const l = lines[i] ?? "";
+        if (l.trim() === "" || !l.includes("|")) break;
+        const cells = tableCells(l);
+        rows.push(head.map((_, k) => parseInline(cells[k] ?? "")));
+        i++;
+      }
+      out.push({
+        t: "table",
+        align: head.map((_, k) => align[k] ?? null),
+        head: head.map((c) => parseInline(c)),
+        rows,
+      });
       continue;
     }
 
@@ -170,7 +220,7 @@ function parseBlocks(lines: string[]): Block[] {
     i++;
     while (i < lines.length) {
       const l = lines[i] ?? "";
-      if (l.trim() === "" || startsBlock(l)) break;
+      if (l.trim() === "" || startsBlock(l) || startsTable(l, lines[i + 1])) break;
       para.push(l.trim());
       i++;
     }

@@ -222,11 +222,20 @@ describe("createEngine — tools (spec: mcp-actions)", () => {
     );
   });
 
-  it("falls back to every retrieved block plus every result when nothing is named", async () => {
+  it("cites only the tool results when a turn with tools names nothing", async () => {
     const { events } = await run([chunk("c1")], [call, result, "Shipped."]);
     const citations = events.find((e) => e.type === "citations");
     expect(citations?.type === "citations" && citations.citations.map((c) => c.documentId)).toEqual(
-      ["doc_c1", "action:c1"],
+      ["action:c1"],
+    );
+  });
+
+  it("recognises a decorated sources line and keeps it out of the answer", async () => {
+    const { events } = await run([chunk("c1")], [call, result, "Shipped.\n**SOURCES:** T1."]);
+    expect(text(events)).toBe("Shipped.");
+    const citations = events.find((e) => e.type === "citations");
+    expect(citations?.type === "citations" && citations.citations.map((c) => c.documentId)).toEqual(
+      ["action:c1"],
     );
   });
 

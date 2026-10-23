@@ -2,7 +2,7 @@
 title: Actions
 sidebarTitle: Overview
 description: Attach MCP servers to a project so the widget can look up a visitor's own data and act for them, with every tool switched between off, allowed and needs-confirmation.
-updated: 2026-10-05
+updated: 2026-10-23
 ---
 
 An answer from the documentation covers "how do I cancel an order". It does
@@ -44,7 +44,8 @@ eight thousand characters of a result shown to the model
   spinner while it runs, a check mark when it finished, *Couldn't complete*
   when it failed. The lines sit under one fold that is open while the model
   works and closes once the answer starts, with a summary such as *Worked
-  for 3s · 2 steps*; the visitor can open it again. With
+  for 3s · 2 steps* (the `activitySteps` copy key; a single step reads *1
+  step*, from `activityStep`); the visitor can open it again. With
   [`DESKBELL_SHOW_REASONING`](/deploy/models#showing-the-reasoning) on, the
   model's reasoning appears between the lines.
 - For a confirmation, a card with the tool's label, the arguments one per
