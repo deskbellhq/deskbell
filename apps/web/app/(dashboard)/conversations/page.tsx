@@ -23,6 +23,8 @@ export default async function ConversationsIndexPage({
   const [newest] = await listConversations(project, {
     filter: view.filter,
     range: resolveRange(view, todayUtc()),
+    topic: view.topic,
+    context: view.context,
     limit: 1,
   });
 

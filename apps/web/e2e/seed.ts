@@ -81,6 +81,69 @@ export const WIDGET = {
   },
 } as const;
 
+/**
+ * The usage suite (spec: usage-page, question-topics): anonymous threads
+ * carrying a `user_type` and an `account` context, their questions labelled
+ * with the project's two topics. Session 1 asks on two different days, so it
+ * is the one returning visitor among customers. Dates are offsets from now,
+ * all inside the last seven days and all older than B's thread, which the
+ * Conversations page expects to find newest.
+ */
+export const USAGE = {
+  topics: [
+    { key: "billing", name: "Billing", description: "invoices, plans and payment" },
+    { key: "exports", name: "Exports", description: "feeds, files and formats" },
+  ],
+  accounts: {
+    acme: { id: "acc_acme", name: "Acme" },
+    globex: { id: "acc_globex", name: "Globex" },
+    initech: { id: "acc_initech", name: "Initech" },
+  },
+  threads: [
+    {
+      id: "conv_e2e_u1",
+      session: "e2e-usage-1",
+      userType: "customer",
+      account: "acme",
+      day: 1,
+      questions: [
+        ["How are invoices issued?", "billing"],
+        ["Can I pay by card?", "billing"],
+      ],
+    },
+    {
+      id: "conv_e2e_u2",
+      session: "e2e-usage-1",
+      userType: "customer",
+      account: "acme",
+      day: 3,
+      questions: [["Can I export to CSV?", "exports"]],
+    },
+    {
+      id: "conv_e2e_u3",
+      session: "e2e-usage-2",
+      userType: "customer",
+      account: "globex",
+      day: 2,
+      questions: [
+        ["How do I schedule an export?", "exports"],
+        ["Where is my invoice?", "billing"],
+      ],
+    },
+    {
+      id: "conv_e2e_u4",
+      session: "e2e-usage-3",
+      userType: "internal",
+      account: "initech",
+      day: 4,
+      questions: [
+        ["What is the weather like?", "other"],
+        ["Is this labelled yet?", null],
+      ],
+    },
+  ],
+} as const;
+
 export const SEED = {
   clusters: {
     A: { id: "gap_e2e_a", label: "How do I export a feed?" },
@@ -189,6 +252,7 @@ export async function seedBrowserSuite(now: Date = new Date()): Promise<void> {
         jwks: { keys: [publicJwk] },
         staffClaim: { ...WIDGET.staffClaim },
       },
+      topics: [...USAGE.topics],
     });
 
     const { one, two } = WIDGET.visitors;
@@ -247,6 +311,49 @@ export async function seedBrowserSuite(now: Date = new Date()): Promise<void> {
           updatedAt: new Date(t.at.getTime() + 1000),
         },
       ]);
+    }
+
+    // Usage threads (spec: usage-page): anonymous, with context and topic labels.
+    for (const t of USAGE.threads) {
+      const at = daysAgo(t.day, now);
+      const account = USAGE.accounts[t.account];
+      await db.insert(conversations).values({
+        id: t.id,
+        orgId: ORG,
+        projectId: PROJECT,
+        sessionId: t.session,
+        title: t.questions[0][0],
+        context: { user_type: { id: t.userType }, account: { ...account } },
+        createdAt: at,
+        updatedAt: at,
+      });
+      await db.insert(messages).values(
+        t.questions.flatMap(([question, topic], i) => {
+          const asked = new Date(at.getTime() + i * 60_000);
+          return [
+            {
+              id: `msg_${t.id}_q${i}`,
+              orgId: ORG,
+              conversationId: t.id,
+              role: "user" as const,
+              content: question,
+              topic,
+              createdAt: asked,
+              updatedAt: asked,
+            },
+            {
+              id: `msg_${t.id}_a${i}`,
+              orgId: ORG,
+              conversationId: t.id,
+              role: "assistant" as const,
+              content: `Here is how that works.`,
+              model: "test/model",
+              createdAt: new Date(asked.getTime() + 1000),
+              updatedAt: new Date(asked.getTime() + 1000),
+            },
+          ];
+        }),
+      );
     }
 
     // Tool calls for the actions log (spec: actions-log): one server, four

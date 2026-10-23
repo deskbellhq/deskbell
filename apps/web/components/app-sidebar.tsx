@@ -11,6 +11,7 @@ import {
 } from "@deskbell/ui/components/sidebar";
 import {
   BookOpen,
+  ChartColumn,
   CircleSlash,
   Database,
   LayoutDashboard,
@@ -56,6 +57,7 @@ const data = {
       items: [
         { title: "Conversations", url: "/conversations", icon: MessagesSquare },
         { title: "Gaps", url: "/gaps", icon: CircleSlash },
+        { title: "Usage", url: "/usage", icon: ChartColumn },
       ],
     },
   ],

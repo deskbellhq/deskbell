@@ -1,0 +1,63 @@
+---
+title: Usage
+description: The Usage page counts questions, conversations and visitors over a period, split and filtered by the context your pages attach, and grouped into the topics you name.
+updated: 2026-10-23
+---
+
+The Usage page in the dashboard is the count of how much the widget is used,
+by whom in the aggregate, and about what. Four cards, a chart and two tables,
+all computed from the stored conversations on every read, so the page is
+always current.
+
+Every number is a count over **visitor questions** in the period. A
+conversation counts when it had a question in the period, a visitor is a
+signed-in person or, when anonymous, a browser session, and a returning
+visitor is one who asked on more than one day. The bounded periods also show
+the change against the equal-length period before.
+
+## Dimensions come from your pages
+
+The widget's `context` attribute attaches identifiers to a conversation when it
+starts — which account, which site, which kind of user (see
+[Where a conversation starts](/widget/configuration/behaviour#where-a-conversation-starts)).
+The Usage page turns every key it finds into a control:
+
+| Control | What it does |
+|---|---|
+| **Split by** | One series per value of the key: a line on each card, a stack in the chart, a column per topic. More than six values keep the largest five and fold the rest into *Other*; conversations without the key are *No key* |
+| **Break down by** | One table row per value of the key, with visitors, conversations, questions and when it was first and last seen. Click a row to filter the page to it |
+| **Filter** | `key=id` pairs the conversations must carry, shown as chips. The chart and the topic rows carry the first one into the Conversations page |
+
+Nothing in Deskbell knows what a key means. To report on a new dimension,
+add a key to the `context` your page sends; the page offers it as soon as a
+conversation carries it. A key like `user_type` with values `staff` and
+`customer` is how a host separates its own people from its customers without
+the dashboard knowing who anyone is.
+
+## Topics
+
+Under **Settings › Topics** an admin names what visitors ask about: one topic
+per line, as `Name: what belongs here`, up to twenty. From then on each
+question is labelled with one topic by the chat model as it comes in — off the
+visitor's path, within the project's daily token budget — and a question that
+fits none of them counts under *Other*. The description is what the model is
+told, so write it as a rule: "Exports: feeds, files, formats, schedules".
+
+The Topics table on the Usage page counts questions and conversations per
+topic, with the change against the previous period and a column per series
+when the page is split. A topic links to the Conversations page filtered to
+it. Questions the worker has not labelled yet sit in one row at the bottom;
+an hourly job catches up on them.
+
+Renaming a topic changes its key, so the settings page offers **Re-label**: it
+clears every label in the project and labels every question again against
+the current list, oldest first, a few hundred per hour.
+
+## What the page never shows
+
+The page counts people; it does not name them. Visitors are counted as
+opaque ids, and the queries behind the page read none of a visitor's profile.
+The breakdown table shows the ids and names your page attached to the
+conversation — your accounts, your sites — never the visitor's own. The
+Conversations page, which does show a verified visitor's name and email to
+members, is where a count leads when you click through.

@@ -126,6 +126,11 @@ the list is the visitor's own threads, anonymous or verified, and a scope
 picks among those. It never reaches another visitor's threads, whatever ids
 the page puts in `context`.
 
+Every key you send is also a dimension on the dashboard's [Usage](/operate/usage)
+page: split the numbers by it, list a breakdown by it, or filter on one of
+its values. A key such as `user_type` with values like `staff` and `customer`
+is how a host separates its own people from its customers in the counts.
+
 The context is written once, when the thread is created; a thread continued
 from another page keeps the ids it started with. Set the attributes before the
 element connects, or update them when the page navigates, so a new thread
