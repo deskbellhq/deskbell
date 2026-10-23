@@ -141,6 +141,7 @@ const DEFAULT_COPY = {
   actionExpired: "Expired",
   activityDone: "Worked for {s}s",
   activitySteps: "{n} steps",
+  activityStep: "{n} step",
   reasoning: "Reasoning",
 };
 
@@ -491,7 +492,7 @@ function Activity({
     ? `${copy.thinking}…`
     : [
         seconds === null ? "" : fill(copy.activityDone, { s: seconds }),
-        steps > 0 ? fill(copy.activitySteps, { n: steps }) : "",
+        steps > 0 ? fill(steps === 1 ? copy.activityStep : copy.activitySteps, { n: steps }) : "",
       ]
         .filter(Boolean)
         .join(" · ");

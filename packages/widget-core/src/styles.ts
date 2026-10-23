@@ -306,6 +306,10 @@ export const CSS = `
 .md h4 { font-size: 14px; font-weight: 600; }
 .md ul, .md ol { padding-left: 20px; }
 .md li { margin: 2px 0; }
+.md-table { overflow-x: auto; margin: 0 0 8px; }
+.md table { border-collapse: collapse; font-size: 13px; }
+.md th, .md td { border: 1px solid var(--_border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.md th { font-weight: 600; }
 .md li > ul, .md li > ol { margin: 2px 0 0; }
 .md code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;

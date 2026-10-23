@@ -936,7 +936,10 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
       input.onSources?.({ named, indices: sources.indices });
       // When the model named nothing, every successful tool result is cited
       // beside the retrieved set: an action the answer took must be visible.
-      const cited = named ? used : hits;
+      // A turn that ran tools and named nothing was answered from the tool
+      // results: citing every retrieved page under it shows unrelated
+      // documents (spec: answer-rendering-fixes).
+      const cited = named ? used : toolResults.length > 0 ? [] : hits;
       const citedTools = named ? usedTools : toolResults;
       const citations: Citation[] = [];
       const seenDocuments = new Set<string>();

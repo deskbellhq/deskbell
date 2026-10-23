@@ -514,7 +514,7 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     expect(blocks?.[0]?.textContent).toBe("The visitor asks about an order. I will look it up.");
     expect(blocks?.[1]?.textContent).toBe("It shipped; answer plainly.");
     expect(group?.querySelector('[part="activity-summary"]')?.textContent).toMatch(
-      /^Worked for \d+s · 1 steps$/,
+      /^Worked for \d+s · 1 step$/,
     );
     expect(host.querySelector('[part="citations"]')).toBeNull();
   });
@@ -725,6 +725,6 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     // A replayed message has no timing, so the fold counts its steps only, and starts closed.
     const group = host.querySelector('[part="activity"]') as HTMLDetailsElement;
     expect(group.open).toBe(false);
-    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 steps");
+    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 step");
   });
 });

@@ -1,7 +1,7 @@
 ---
 title: Behaviour
 description: The widget's modes and content features, from inline mode and welcome cards to feedback reasons, the thread sidebar, conversation context, the draggable launcher and how answers render.
-updated: 2026-09-21
+updated: 2026-10-23
 ---
 
 Each feature here is an option from the [options tables](/widget/configuration),
@@ -73,6 +73,8 @@ field, as before. Ids reach the dashboard and the [gaps](/operate/gaps) page as
 given. After a reason is sent, the `feedbackThanks` copy shows beside the
 thumbs, and again when the thread is reopened. The `feedbackNote` copy key
 renders a Markdown notice under the reasons, for example about data handling.
+The `feedbackPrompt` copy key, empty by default, puts a short prompt such as
+"Was this helpful?" in front of the thumbs, in the `feedback-label` part.
 
 ## Unverified names
 
@@ -92,7 +94,10 @@ beside the thread instead of a list behind a back button: a toggle collapses
 it to icons, a button starts a new conversation, each row opens a thread and
 can delete it after an inline confirmation. With a `scope-key` match the rail
 offers "here" and "all" tabs (the `scopeThis` and `scopeAll` copy keys).
-Narrower than 480 px the open rail overlays the thread.
+Narrower than 480 px the open rail overlays the thread. The rail's head
+carries a title, the `threads` copy key, hidden by default because the rail's
+accessible name already says it; a host shows it with
+`deskbell-widget::part(sidebar-title) { display: block; }`.
 
 `resume-thread` decides what a fresh open shows: `last` (the thread this
 browser last had open), `newest` (the visitor's most recent thread, which
@@ -100,9 +105,9 @@ follows a signed-in visitor across devices) or `none`. `thread-idle-minutes`
 is how long a thread may sit silent before the next question starts a new one;
 `0` never rolls over.
 
-The parts are `sidebar`, `sidebar-toggle`, `new-thread-button`,
-`scope-tabs`, `scope-tab`, `thread`, `thread-title`, `thread-meta`,
-`thread-delete` and `thread-confirm`.
+The parts are `sidebar`, `sidebar-head`, `sidebar-title`, `sidebar-toggle`,
+`new-thread-button`, `scope-tabs`, `scope-tab`, `thread`, `thread-title`,
+`thread-meta`, `thread-delete` and `thread-confirm`.
 
 ## Where a conversation starts
 
@@ -181,11 +186,12 @@ contains can run on your page.
 
 | Rendered | Not rendered |
 |---|---|
-| Paragraphs, with a single newline as a line break | Tables |
-| Headings (as `h3` and `h4` inside the bubble) | Images |
-| Bullet and numbered lists, one level of nesting | Raw HTML (shown as text) |
-| Fenced and inline code | Footnotes, task lists |
-| Links, bare URLs, bold, italic, quotes, rules | Syntax highlighting |
+| Paragraphs, with a single newline as a line break | Images |
+| Headings (as `h3` and `h4` inside the bubble) | Raw HTML (shown as text) |
+| Bullet and numbered lists, one level of nesting | Footnotes, task lists |
+| Fenced and inline code | Syntax highlighting |
+| Links, bare URLs, bold, italic, quotes, rules | |
+| Pipe tables with column alignment, in a horizontally scrolling box | |
 
 Links open in a new tab and dispatch `deskbell:link` with the `href`. Only
 `http`, `https`, `mailto`, anchors and root-relative paths are followed; any
@@ -195,7 +201,10 @@ its own.
 
 The fenced-code block reads two tokens, `--deskbell-code-bg` and
 `--deskbell-code-fg`. The structural elements expose the parts `md-heading`,
-`md-list`, `md-code` and `md-link`.
+`md-list`, `md-code`, `md-table` and `md-link`. A table starts only where a
+header row is followed by its separator row, so a sentence with a `|` in it
+stays prose, and a table still streaming renders as text until the separator
+arrives.
 
 To rewrite an answer before it renders, set the element's `answerTransform`
 property to a pure function of the Markdown string. It runs on the partial

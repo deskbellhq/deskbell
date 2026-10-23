@@ -62,7 +62,7 @@ test.describe("actions from a host page", () => {
     // The steps fold under one line once the answer starts (spec: activity-disclosure).
     const fold = dialog.locator('[part="activity"]').first();
     await expect(fold.locator('[part="activity-summary"]')).toHaveText(
-      /^Worked for \d+s · 1 steps$/,
+      /^Worked for \d+s · 1 step$/,
     );
     await expect(fold).not.toHaveAttribute("open", "");
     await fold.locator('[part="activity-summary"]').click();

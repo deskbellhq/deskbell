@@ -141,6 +141,7 @@ export const COPY_KEYS = [
   "actionExpired",
   "activityDone",
   "activitySteps",
+  "activityStep",
   "reasoning",
 ] as const;
 
@@ -304,6 +305,7 @@ export const PARTS = [
   "md-heading",
   "md-list",
   "md-code",
+  "md-table",
   "md-link",
   "header-actions",
   "disclaimer",
