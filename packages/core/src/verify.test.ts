@@ -80,8 +80,21 @@ describe("extractTerms — what an answer asserts", () => {
     expect(extractTerms(answer)).toEqual([]);
   });
 
-  it("strips trailing colons and periods from a label used as a heading", () => {
-    expect(extractTerms("**Export rules:** choose a format.")).toEqual(["Export rules"]);
+  it("strips a trailing period", () => {
+    expect(extractTerms("Click **Save.**")).toEqual(["Save"]);
+  });
+
+  it("skips a bold span that ends in a colon: a heading, not a name", () => {
+    const answer = [
+      "1. **Open the attribute:** in Data View, select **Edit**.",
+      "2. **Describe the goal:** select **Rule box finder**.",
+      "3. **Settings → Billing:** open **Invoices**.",
+    ].join("\n");
+    expect(extractTerms(answer)).toEqual(["Edit", "Rule box finder", "Invoices"]);
+  });
+
+  it("still checks a name used as a label when the colon is outside the bold", () => {
+    expect(extractTerms("**Export rules**: choose a format.")).toEqual(["Export rules"]);
   });
 
   it("keeps code only when it is one token of reasonable length", () => {

@@ -71,6 +71,7 @@ import { loadGapRows } from "@/lib/gaps-query";
 import { readGapsConfig } from "@/lib/gaps-signal";
 import { relativeTime } from "@/lib/inbox";
 import { getDefaultProject } from "@/lib/org";
+import { unsupportedTitle } from "@/lib/refusal-label";
 import {
   analyzeCluster,
   analyzeOpenClusters,
@@ -504,10 +505,9 @@ export default async function GapsPage({
                             <Badge
                               variant="outline"
                               className="text-amber-700 dark:text-amber-400"
-                              title={`Named something the documentation does not contain: ${g.unsupportedTerms
-                                .slice(0, 5)
-                                .map((t) => t.term)
-                                .join(", ")}`}
+                              title={unsupportedTitle(
+                                g.unsupportedTerms.slice(0, 5).map((t) => t.term),
+                              )}
                             >
                               <TriangleAlert />
                               {g.unsupported === g.count

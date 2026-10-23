@@ -21,8 +21,8 @@ export function refusalLabel(reason: string | null | undefined): string {
 }
 
 /**
- * The retrieval behind an answer, for a badge tooltip: "3 chunks, best 0.31".
- * Null when the row carries no signal.
+ * The retrieval behind an answer, for a badge tooltip: "3 chunks, best score
+ * 0.31". Null when the row carries no signal.
  */
 export function retrievalSummary(m: {
   retrievalHits: number | null;
@@ -33,6 +33,23 @@ export function retrievalSummary(m: {
   if (m.retrievalHits != null) {
     parts.push(`${m.retrievalHits} ${m.retrievalHits === 1 ? "chunk" : "chunks"}`);
   }
-  if (m.retrievalTopScore != null) parts.push(`best ${m.retrievalTopScore.toFixed(2)}`);
+  if (m.retrievalTopScore != null) parts.push(`best score ${m.retrievalTopScore.toFixed(2)}`);
   return parts.join(", ");
+}
+
+/**
+ * The tooltip of an "Unsupported name" badge (spec: answer-verification): a
+ * sentence an operator can read without knowing how the check works, the
+ * names quoted so they stand out from the copy, then the retrieval behind
+ * the answer when the row carries it.
+ */
+export function unsupportedTitle(terms: string[], signal?: string | null): string {
+  const quoted = terms.map((t) => `"${t}"`);
+  const list =
+    quoted.length <= 1
+      ? quoted.join("")
+      : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
+  const verb = terms.length === 1 ? "appears" : "appear";
+  const head = `The answer named ${list}, which ${verb} nowhere in the documentation.`;
+  return signal ? `${head} Retrieval behind the answer: ${signal}.` : head;
 }
