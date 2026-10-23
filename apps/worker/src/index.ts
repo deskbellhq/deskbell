@@ -4,12 +4,14 @@ import {
   createEmbedder,
   createFeedbackSummarizerDeps,
   createGapAnalystDeps,
+  createQuestionClassifierDeps,
   notificationSummaryMode,
 } from "@deskbell/core/models";
 import { chunks, type Database, expirePendingActions, pruneRateLimits } from "@deskbell/db";
 import {
   AnalyzeGapClusterJobSchema,
   AssignGapClusterJobSchema,
+  ClassifyQuestionJobSchema,
   DeliverNotificationJobSchema,
   EmbedChunksJobSchema,
   GapsCatchupJobSchema,
@@ -18,6 +20,7 @@ import {
   PurgeConversationsJobSchema,
   QUEUE_ANALYZE_GAP_CLUSTER,
   QUEUE_ASSIGN_GAP_CLUSTER,
+  QUEUE_CLASSIFY_QUESTION,
   QUEUE_EMBED_CHUNKS,
   QUEUE_GAPS_CATCHUP,
   QUEUE_INGEST_DOCUMENT,
@@ -27,14 +30,17 @@ import {
   QUEUE_PURGE_CONVERSATIONS,
   QUEUE_REINDEX_EMBEDDINGS,
   QUEUE_TITLE_CONVERSATION,
+  QUEUE_TOPICS_CATCHUP,
   ReindexEmbeddingsJobSchema,
   TitleConversationJobSchema,
+  TopicsCatchupJobSchema,
 } from "@deskbell/shared";
 import { and, count, isNotNull, ne } from "drizzle-orm";
 import { PgBoss } from "pg-boss";
 import { getDb } from "./db";
 import { handleAnalyzeGapCluster } from "./handlers/analyze-gap-cluster";
 import { handleAssignGapCluster } from "./handlers/assign-gap-cluster";
+import { handleClassifyQuestion } from "./handlers/classify-question";
 import { handleDeliverNotification } from "./handlers/deliver-notification";
 import { handleEmbedChunks } from "./handlers/embed-chunks";
 import { handleGapsCatchup } from "./handlers/gaps-catchup";
@@ -43,6 +49,7 @@ import { handleIngestSource } from "./handlers/ingest-source";
 import { handlePurgeConversations } from "./handlers/purge-conversations";
 import { handleReindexEmbeddings } from "./handlers/reindex-embeddings";
 import { handleTitleConversation } from "./handlers/title-conversation";
+import { handleTopicsCatchup } from "./handlers/topics-catchup";
 
 /**
  * Background jobs on pg-boss — Postgres is the ONLY infra dependency (D11).
@@ -58,6 +65,8 @@ import { handleTitleConversation } from "./handlers/title-conversation";
  *   gaps.analyze        — a finding and a recommendation for one cluster (spec: gap-analysis)
  *   conversations.title — name a thread from its first exchange, opt-in (spec: conversation-context-and-titles)
  *   notifications.deliver — post one event to the project's Slack/webhook channels (spec: project-notifications)
+ *   topics.classify     — label one visitor question with a project topic (spec: question-topics)
+ *   topics.catchup      — label what the producers missed, hourly, and after a topic-list change
  */
 /**
  * Chunks whose vector is in a store other than the configured one cannot
@@ -91,6 +100,7 @@ async function main() {
   // so a bad analyst id fails one analysis rather than this boot.
   const analyst = createGapAnalystDeps();
   const titler = createConversationTitlerDeps();
+  const classifier = createQuestionClassifierDeps();
   // Null turns the summary sentence off; the notification itself still goes out.
   const summarizer = notificationSummaryMode() === "model" ? createFeedbackSummarizerDeps() : null;
 
@@ -110,6 +120,8 @@ async function main() {
     QUEUE_TITLE_CONVERSATION,
     QUEUE_NOTIFICATIONS_DELIVER,
     QUEUE_PURGE_CONVERSATIONS,
+    QUEUE_CLASSIFY_QUESTION,
+    QUEUE_TOPICS_CATCHUP,
   ]) {
     await boss.createQueue(queue);
   }
@@ -120,6 +132,7 @@ async function main() {
   await boss.schedule(QUEUE_MAINTENANCE_PRUNE, "17 * * * *");
   await boss.schedule(QUEUE_GAPS_CATCHUP, "23 * * * *");
   await boss.schedule(QUEUE_PURGE_CONVERSATIONS, "41 * * * *");
+  await boss.schedule(QUEUE_TOPICS_CATCHUP, "53 * * * *");
 
   await boss.work(QUEUE_INGEST_SOURCE, async (jobs) => {
     for (const job of jobs) {
@@ -247,6 +260,26 @@ async function main() {
           `[purge.conversations] ${job.id} project=${p.projectId} days=${p.days} removed=${p.removed} capped=${p.capped}`,
         );
       }
+    }
+  });
+
+  // One short model call per question, only for projects with a topic list.
+  // A labelled, removed or topic-less question is a no-op; budget refusals
+  // are not retried (the day is spent; the catch-up tries tomorrow).
+  await boss.work(QUEUE_CLASSIFY_QUESTION, async (jobs) => {
+    for (const job of jobs) {
+      const payload = ClassifyQuestionJobSchema.parse(job.data);
+      await handleClassifyQuestion(db, classifier, payload);
+    }
+  });
+
+  // Hourly, and once for a project after its topic list changes. Capped per
+  // run so a backlog is worked through over a few hours on this serial worker.
+  await boss.work(QUEUE_TOPICS_CATCHUP, async (jobs) => {
+    for (const job of jobs) {
+      const payload = TopicsCatchupJobSchema.parse(job.data ?? {});
+      console.log(`[topics.catchup] ${job.id} project=${payload.projectId ?? "all"}`);
+      await handleTopicsCatchup(db, classifier, payload);
     }
   });
 
