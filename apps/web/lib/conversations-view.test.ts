@@ -39,6 +39,8 @@ describe("parseView", () => {
       period: "7d",
       from: null,
       to: null,
+      topic: null,
+      context: null,
     });
     expect(parseView({ period: "today", filter: "down" }).period).toBe("today");
   });
@@ -48,10 +50,14 @@ describe("parseView", () => {
       period: "custom",
       from: "2026-09-01",
       to: "2026-09-23",
+      topic: null,
+      context: null,
     });
     expect(parseView({ from: "2026-09-23", to: "2026-09-01" })).toMatchObject({
       from: "2026-09-01",
       to: "2026-09-23",
+      topic: null,
+      context: null,
     });
   });
   it("falls back to all time when a range is half or broken", () => {
@@ -63,6 +69,8 @@ describe("parseView", () => {
       period: "all",
       from: null,
       to: null,
+      topic: null,
+      context: null,
     });
   });
   it("lets period win over a stray range", () => {
@@ -132,5 +140,25 @@ describe("formatPeriod", () => {
     expect(formatPeriod(parseView({ from: "2026-09-01", to: "2026-09-23" }))).toBe(
       "Sep 1 – Sep 23",
     );
+  });
+});
+
+describe("topic and context filters", () => {
+  it("reads a topic key and the first ctx.<key> pair, dropping bad spellings", () => {
+    const view = parseView({ topic: "billing", "ctx.account": "acc_1", "ctx.site": "s" });
+    expect(view.topic).toBe("billing");
+    expect(view.context).toEqual({ key: "account", id: "acc_1" });
+    expect(parseView({ topic: "Not A Key", "ctx.1bad": "x" })).toMatchObject({
+      topic: null,
+      context: null,
+    });
+  });
+
+  it("writes them back and round-trips", () => {
+    const view = parseView({ period: "7d", topic: "billing", "ctx.account": "acc 1" });
+    const href = conversationsHref("/conversations", view);
+    expect(href).toBe("/conversations?period=7d&topic=billing&ctx.account=acc+1");
+    const url = new URL(href, "http://x");
+    expect(parseView(Object.fromEntries(url.searchParams))).toEqual(view);
   });
 });

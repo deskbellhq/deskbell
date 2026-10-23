@@ -29,7 +29,11 @@ import { recordUsage, ZERO_USAGE } from "@/lib/abuse/budget";
 import { actionConfig, identityIssuer } from "@/lib/actions/config";
 import { type RequestTools, toolsForRequest } from "@/lib/actions/tools-for-request";
 import { originFromHeaders } from "@/lib/base-url";
-import { enqueueAssignGapCluster, enqueueTitleConversation } from "@/lib/boss";
+import {
+  enqueueAssignGapCluster,
+  enqueueClassifyQuestion,
+  enqueueTitleConversation,
+} from "@/lib/boss";
 import { clarificationText, loadRecentTurns, titleFromQuestion } from "@/lib/conversation";
 import { ownedBy } from "@/lib/conversation-access";
 import { getDb } from "@/lib/db";
@@ -216,13 +220,24 @@ export async function POST(request: Request) {
         })
         .where(eq(actionCalls.id, pending.id));
     } else {
+      const questionId = newId("msg");
       await db.insert(messages).values({
-        id: newId("msg"),
+        id: questionId,
         orgId: project.orgId,
         conversationId,
         role: "user",
         content: parsed.data.message,
       });
+      // A question gets its topic label off the visitor's path (spec:
+      // question-topics): only when the project has topics, and a queue
+      // failure is logged — the hourly catch-up labels what this missed.
+      if (project.topics.length > 0) {
+        enqueueClassifyQuestion({
+          orgId: project.orgId,
+          projectId: project.id,
+          messageId: questionId,
+        }).catch((error) => console.error("[ask] failed to enqueue topic labelling:", error));
+      }
     }
 
     // The tools this visitor may use (spec: mcp-actions). Never on the way

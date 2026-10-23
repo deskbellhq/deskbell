@@ -17,6 +17,7 @@ export * from "./conversation-context.ts";
 export * from "./jobs.ts";
 export * from "./notification-signature.ts";
 export * from "./notifications.ts";
+export * from "./topics.ts";
 export * from "./webhook-url.ts";
 export * from "./widget-config.ts";
 

@@ -21,6 +21,7 @@ import {
   type LucideIcon,
   Palette,
   SearchX,
+  Tags,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +36,7 @@ const accountGroup: SettingsItem[] = [
 const workspaceGroup: SettingsItem[] = [
   { title: "Members", url: "/settings/members", icon: Users },
   { title: "Gaps", url: "/settings/gaps", icon: SearchX },
+  { title: "Topics", url: "/settings/topics", icon: Tags },
   { title: "Data retention", url: "/settings/retention", icon: Hourglass },
 ];
 const widgetGroup: SettingsItem[] = [
