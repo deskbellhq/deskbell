@@ -91,6 +91,7 @@ database, or use *Reindex* on the Sources page.
 | `DESKBELL_RETRIEVAL_EF_SEARCH` | `100` | How many candidates the vector index examines per query (pgvector `hnsw.ef_search`); deeper is more exact and slightly slower |
 | `DESKBELL_RETRIEVAL_POOL` | `24` | Pooled candidates handed to final ordering (and the reranker) |
 | `DESKBELL_RETRIEVAL_MAX_PER_DOC` | `1` | Max chunks from one document in the final selection; `0` turns the cap off |
+| `DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS` | `3` | Chunks the top-ranked document may keep on top of the cap, so a long page can answer a question that spans it; `1` turns it off |
 | `DESKBELL_RETRIEVAL_ORDER` | `fused` | Final ordering with no reranker: `fused` or `cosine` |
 | `DESKBELL_RERANK` | `off` | `llm` (one structured chat-model call) or `local` (an in-process cross-encoder) reorders the pooled candidates |
 | `DESKBELL_RERANK_TIMEOUT_MS` | `10000` | `llm` only: past it the answer proceeds in fusion order |

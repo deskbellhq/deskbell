@@ -6,7 +6,12 @@ import {
   actionSummary,
   type Citation,
 } from "@deskbell/shared";
-import { type CandidateOrder, capPerDocument, orderCandidates } from "./retrieval/ordering";
+import {
+  type CandidateOrder,
+  capPerDocument,
+  deepenTopDocument,
+  orderCandidates,
+} from "./retrieval/ordering";
 import { type QueryPlan, type QueryPlanInput, unplannedQuery } from "./retrieval/query-plan";
 import { applyRanking, type Reranker } from "./retrieval/reranker";
 import {
@@ -269,6 +274,12 @@ export interface RetrievalOptions {
   pool?: number;
   /** Max chunks per document at final selection; 0 = off. */
   maxPerDocument?: number;
+  /**
+   * Chunks the top-ranked document may keep after the cap, appended after
+   * the first `limit` hits; 1 = off. Ranking-affecting: flips only against
+   * eval numbers (D8).
+   */
+  topDocumentChunks?: number;
   /**
    * Final ordering when no reranker runs: "fused" (default — best fused rank
    * first) or "cosine" (re-sort the pool by similarity to the canonical
@@ -612,6 +623,8 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
   const efSearch = options.retrieval?.efSearch ?? RETRIEVAL_DEFAULTS.efSearch;
   const pool = options.retrieval?.pool ?? RETRIEVAL_DEFAULTS.pool;
   const maxPerDocument = options.retrieval?.maxPerDocument ?? RETRIEVAL_DEFAULTS.maxPerDocument;
+  const topDocumentChunks =
+    options.retrieval?.topDocumentChunks ?? RETRIEVAL_DEFAULTS.topDocumentChunks;
   const order = options.retrieval?.order ?? RETRIEVAL_DEFAULTS.order;
   const clarify = options.clarify ?? false;
   const verify = options.verify ?? false;
@@ -652,7 +665,11 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         // chunks (capping the answer size alone can only shrink it). With the
         // cap off and nothing else on, it collapses to `limit`.
         const expanded =
-          mode === "hybrid" || queries.length > 1 || Boolean(deps.rerank) || maxPerDocument > 0;
+          mode === "hybrid" ||
+          queries.length > 1 ||
+          Boolean(deps.rerank) ||
+          maxPerDocument > 0 ||
+          topDocumentChunks > 1;
         const candidates = await deps.vectorStore.search(input.orgId, queries, {
           projectId: input.projectId,
           limit: expanded ? Math.max(pool, limit) : limit,
@@ -673,7 +690,11 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         );
         const ordered =
           reranked ?? (order === "cosine" ? orderCandidates(candidates, "cosine") : candidates);
-        hits = capPerDocument(ordered, maxPerDocument).slice(0, limit);
+        hits = deepenTopDocument(
+          ordered,
+          capPerDocument(ordered, maxPerDocument).slice(0, limit),
+          topDocumentChunks,
+        );
         input.onRetrieval?.(hits);
         // Before the empty check on purpose: a retrieval-only run reports what
         // retrieval returned, and "it returned nothing" is a result, not a refusal.

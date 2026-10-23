@@ -72,6 +72,7 @@ const { values } = parseArgs({
     "ef-search": { type: "string" },
     pool: { type: "string" },
     "max-per-doc": { type: "string" },
+    "top-doc-chunks": { type: "string" },
     order: { type: "string" },
     rerank: { type: "string" },
     "rerank-model": { type: "string" },
@@ -122,6 +123,7 @@ function assertNoSweepFlagsOutsideProject(context: string): void {
     "ef-search",
     "pool",
     "max-per-doc",
+    "top-doc-chunks",
     "order",
     "rerank",
     "rerank-model",
@@ -209,6 +211,9 @@ async function buildTarget(): Promise<BuiltTarget> {
       ...(values["max-per-doc"] === undefined
         ? {}
         : { maxPerDocument: int("--max-per-doc", values["max-per-doc"]) }),
+      ...(values["top-doc-chunks"] === undefined
+        ? {}
+        : { topDocumentChunks: int("--top-doc-chunks", values["top-doc-chunks"]) }),
       ...(values.order === undefined
         ? {}
         : { order: choice("--order", values.order, ["fused", "cosine"]) }),

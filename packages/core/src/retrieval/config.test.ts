@@ -35,6 +35,7 @@ describe("retrievalOptionsFromEnv", () => {
         DESKBELL_RETRIEVAL_EF_SEARCH: "200",
         DESKBELL_RETRIEVAL_POOL: "32",
         DESKBELL_RETRIEVAL_MAX_PER_DOC: "2",
+        DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS: "3",
         DESKBELL_RETRIEVAL_ORDER: "cosine",
       }),
     ).toEqual({
@@ -44,6 +45,7 @@ describe("retrievalOptionsFromEnv", () => {
       efSearch: 200,
       pool: 32,
       maxPerDocument: 2,
+      topDocumentChunks: 3,
       order: "cosine",
     });
     // Explicit off/0 are valid answers, said out loud.
@@ -65,11 +67,12 @@ describe("retrievalOptionsFromEnv", () => {
         DESKBELL_RETRIEVAL_EF_SEARCH: "0",
         DESKBELL_RETRIEVAL_POOL: "2.5",
         DESKBELL_RETRIEVAL_MAX_PER_DOC: "many",
+        DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS: "0",
         DESKBELL_RETRIEVAL_ORDER: "rrf",
         DESKBELL_RETRIEVAL_MIN_SCORE: "0.3",
       }),
     ).toEqual({ minScore: 0.3 });
-    expect(warn).toHaveBeenCalledTimes(7);
+    expect(warn).toHaveBeenCalledTimes(8);
     warn.mockRestore();
   });
 });

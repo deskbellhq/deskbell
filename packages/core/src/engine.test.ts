@@ -686,7 +686,7 @@ describe("createEngine — eval seams", () => {
     await collect(
       [chunk("c1")],
       ["ok"],
-      { retrieval: { limit: 3, minScore: 0.1, maxPerDocument: 0 } },
+      { retrieval: { limit: 3, minScore: 0.1, maxPerDocument: 0, topDocumentChunks: 1 } },
       {},
       tuned,
     );
@@ -751,10 +751,24 @@ describe("createEngine — pooled retrieval (spec: hybrid-retrieval)", () => {
     expect(rig.search).toMatchObject({ limit: 24, mode: "vector" });
   });
 
-  it("with the cap off and nothing else on, the pool collapses to limit", async () => {
+  it("with the cap and top-document depth off, the pool collapses to limit", async () => {
+    const rig: Rig = { planQuery: async () => PLAN };
+    await collect(
+      [chunk("c1")],
+      ["ok"],
+      { retrieval: { maxPerDocument: 0, topDocumentChunks: 1 } },
+      {},
+      rig,
+    );
+    expect(rig.search).toMatchObject({ limit: 8, mode: "vector" });
+  });
+
+  it("with the cap off, the shipped top-document depth still opens the pool", async () => {
+    // Deepening the top page selects from the pool, so the store must hand
+    // it back even when no cap would otherwise ask for it.
     const rig: Rig = { planQuery: async () => PLAN };
     await collect([chunk("c1")], ["ok"], { retrieval: { maxPerDocument: 0 } }, {}, rig);
-    expect(rig.search).toMatchObject({ limit: 8, mode: "vector" });
+    expect(rig.search).toMatchObject({ limit: 24, mode: "vector" });
   });
 
   it("hands the store the ANN scan depth, defaulted and overridden", async () => {
@@ -824,7 +838,7 @@ describe("createEngine — pooled retrieval (spec: hybrid-retrieval)", () => {
     await collect(
       hits,
       ["ok"],
-      { retrieval: { maxPerDocument: 2 } },
+      { retrieval: { maxPerDocument: 2, topDocumentChunks: 1 } },
       {
         onRetrieval: (chunks) => {
           retrieved = chunks.map((c) => c.chunkId);

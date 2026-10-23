@@ -11,6 +11,7 @@ import type { RetrievalOptions } from "../engine";
  *   DESKBELL_RETRIEVAL_EF_SEARCH    ANN scan depth, pgvector hnsw.ef_search (default 100)
  *   DESKBELL_RETRIEVAL_POOL         pooled-candidate count (default 24)
  *   DESKBELL_RETRIEVAL_MAX_PER_DOC  chunks per document at final selection (default 1), 0 = off
+ *   DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS  chunks the top-ranked document keeps on top of the cap (default 3), 1 = off
  *   DESKBELL_RETRIEVAL_ORDER        fused (default) | cosine
  *
  * The sizing knobs are a LATENCY BUDGET, not a quality dial — turning them up
@@ -75,6 +76,12 @@ export function retrievalOptionsFromEnv(env: NodeJS.ProcessEnv = process.env): R
     0,
   );
   if (maxPerDoc !== undefined) options.maxPerDocument = maxPerDoc;
+  const topDocChunks = intKnob(
+    "DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS",
+    env.DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS,
+    1,
+  );
+  if (topDocChunks !== undefined) options.topDocumentChunks = topDocChunks;
 
   const order = env.DESKBELL_RETRIEVAL_ORDER?.trim().toLowerCase();
   if (order === "fused" || order === "cosine") {
