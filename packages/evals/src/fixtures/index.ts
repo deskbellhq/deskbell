@@ -108,6 +108,13 @@ export interface FixtureOptions {
    * and its fingerprint are exactly the fixture's.
    */
   verify?: boolean;
+  /**
+   * Refuse a question about the visitor's own data with its own reason
+   * (spec: own-data-fallback). Only meaningful with a real generator: the
+   * stub never emits the sentinel. Absent, the prompt and its fingerprint
+   * are exactly the fixture's.
+   */
+  ownData?: boolean;
 }
 
 export interface Fixture {
@@ -157,6 +164,7 @@ export async function buildFixture(options: FixtureOptions = {}): Promise<Fixtur
       retrieval: FIXTURE_RETRIEVAL,
       ...(options.clarify ? { clarify: true } : {}),
       ...(options.verify ? { verify: true } : {}),
+      ...(options.ownData ? { ownDataFallback: true } : {}),
     },
   );
 
@@ -168,7 +176,11 @@ export async function buildFixture(options: FixtureOptions = {}): Promise<Fixtur
     // Reported by the thing that built the engine: nothing downstream can see
     // which prompt an engine was constructed with.
     promptHash: promptFingerprint(
-      buildSystemPrompt({ clarify: options.clarify, verify: options.verify }),
+      buildSystemPrompt({
+        clarify: options.clarify,
+        verify: options.verify,
+        ownData: options.ownData,
+      }),
     ),
     chunks,
   };

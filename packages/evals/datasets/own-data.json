@@ -1,0 +1,75 @@
+{
+  "name": "own-data",
+  "description": "Questions about the visitor's own account, which the content cannot answer and nothing on the turn can look up (spec: own-data-fallback), beside how-to questions about the same features that the content does answer. REQUIRES A REAL TARGET with the rule on: the fixture's stub model never emits the sentinel. Run against the controlled corpus: DESKBELL_OWN_DATA=on pnpm evals --dataset packages/evals/datasets/own-data.json --real-model --judge llm. The unanswerable cases score on refusing, whatever the reason; the answerable cases guard the carve-out, so a rule that fires on every mention of 'my' shows up as false refusals.",
+  "cases": [
+    {
+      "id": "fx-od-my-budget",
+      "question": "Why did my project stop answering this morning? Did we hit our daily token budget?",
+      "kind": "unanswerable",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "tags": ["own-data"],
+      "notes": "The corpus explains what a daily token budget is. It cannot say what this visitor's budget is or whether it was hit; a diagnosis written from the page is the failure this guards against.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-od-my-origins",
+      "question": "Which origins are on my allowlist right now?",
+      "kind": "unanswerable",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "tags": ["own-data"],
+      "notes": "A fact about the visitor's own configuration, not about the product.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-od-my-export",
+      "question": "I started an export yesterday. Is it done, and where is my link?",
+      "kind": "unanswerable",
+      "relevantDocumentIds": ["exporting"],
+      "tags": ["own-data"],
+      "notes": "The page says exports email a link that expires after seven days. It cannot say whether this visitor's export finished.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-od-change-position",
+      "question": "Move my launcher to the bottom-left for me.",
+      "kind": "answerable",
+      "relevantDocumentIds": ["theming"],
+      "expectedFacts": [
+        "The visitor moves the launcher themselves, through the position attribute or the host page's own styling",
+        "The answer does not claim to have made the change"
+      ],
+      "keyFact": "The answer does not claim to have made the change",
+      "tags": ["own-data", "change-request"],
+      "notes": "A request to change the visitor's own setup is answered with the documented steps for doing it themselves. The failure in either direction: refusing a question the page answers, or claiming a change was made.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-od-howto-budget",
+      "question": "How do I set a daily token budget on my project?",
+      "kind": "answerable",
+      "relevantDocumentIds": ["origins-and-limits"],
+      "expectedFacts": [
+        "The daily token budget is set per project",
+        "A budget of zero means unlimited"
+      ],
+      "keyFact": "The daily token budget is set per project",
+      "tags": ["own-data", "carve-out"],
+      "notes": "Mentions 'my project' and is still a documentation question. The rule must not fire on the pronoun.",
+      "source": { "kind": "authored" }
+    },
+    {
+      "id": "fx-od-howto-export",
+      "question": "How do I export my conversations?",
+      "kind": "answerable",
+      "relevantDocumentIds": ["exporting"],
+      "expectedFacts": [
+        "Exports are started from Settings under Export",
+        "Conversations export as JSON"
+      ],
+      "keyFact": "Exports are started from Settings under Export",
+      "tags": ["own-data", "carve-out"],
+      "notes": "Same feature as fx-od-my-export, asked as a how-to. The two together hold the line between the visitor's data and the product's documentation.",
+      "source": { "kind": "authored" }
+    }
+  ]
+}

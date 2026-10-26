@@ -168,3 +168,25 @@ describe("parseSourcesTail — tool references (spec: mcp-actions)", () => {
     expect(parseSourcesTail("\nT1")).toEqual({ indices: null, text: "\nT1" });
   });
 });
+
+describe("decorated sources lines", () => {
+  it.each([
+    ["**SOURCES:** 2, T1", [2], [1]],
+    ["Sources: 3.", [3], undefined],
+    ["`SOURCES: 1, 4`", [1, 4], undefined],
+    ["__Sources__: T2", [], [2]],
+  ])("parses %s", (line, indices, tools) => {
+    const parsed = parseSourcesTail(`\n${line}`);
+    expect(parsed.indices).toEqual(indices);
+    expect(parsed.tools).toEqual(tools);
+    expect(parsed.text).toBe("");
+  });
+
+  it("still treats a prose line that starts with Sources as prose", () => {
+    expect(parseSourcesTail("\nSources: see the appendix").indices).toBeNull();
+  });
+
+  it("holds a decorated prefix while it streams", () => {
+    expect(splitSourcesTail("Answer.\n**Sour").hold).toBe("\n**Sour");
+  });
+});

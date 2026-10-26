@@ -91,12 +91,14 @@ database, or use *Reindex* on the Sources page.
 | `DESKBELL_RETRIEVAL_EF_SEARCH` | `100` | How many candidates the vector index examines per query (pgvector `hnsw.ef_search`); deeper is more exact and slightly slower |
 | `DESKBELL_RETRIEVAL_POOL` | `24` | Pooled candidates handed to final ordering (and the reranker) |
 | `DESKBELL_RETRIEVAL_MAX_PER_DOC` | `1` | Max chunks from one document in the final selection; `0` turns the cap off |
+| `DESKBELL_RETRIEVAL_TOP_DOC_CHUNKS` | `3` | Chunks the top-ranked document may keep on top of the cap, so a long page can answer a question that spans it; `1` turns it off |
 | `DESKBELL_RETRIEVAL_ORDER` | `fused` | Final ordering with no reranker: `fused` or `cosine` |
 | `DESKBELL_RERANK` | `off` | `llm` (one structured chat-model call) or `local` (an in-process cross-encoder) reorders the pooled candidates |
 | `DESKBELL_RERANK_TIMEOUT_MS` | `10000` | `llm` only: past it the answer proceeds in fusion order |
 | `DESKBELL_VECTOR_STORE` | `pgvector` | `weaviate` moves the search index to a Weaviate cluster you run; see [Vector store](/deploy/vector-store) |
 | `DESKBELL_CLARIFY` | `off` | `on` lets the engine ask which reading the visitor meant when the retrieved pages answer the question in more than one way |
 | `DESKBELL_VERIFY` | `on` | Asks the model to bold the names it asserts and checks each against the retrieved pages and the whole index once the answer has streamed; a name found nowhere is spoken as a caveat under the answer and flagged on the Gaps page. `off` restores the shorter prompt |
+| `DESKBELL_OWN_DATA` | `off` | Eval runs only: `on` applies the own-data rule to the run's engine, which the product switches per project from the reply under **Settings › Visitor data**. See [Questions about the visitor's own data](/knowledge/own-data-questions) |
 
 `always` expands first questions as well as follow-ups, which improves retrieval
 at the cost of one extra model call on every question. `off` searches the

@@ -141,6 +141,8 @@ const DEFAULT_COPY = {
   actionExpired: "Expired",
   activityDone: "Worked for {s}s",
   activitySteps: "{n} steps",
+  activityStep: "{n} step",
+  feedbackPrompt: "",
   reasoning: "Reasoning",
 };
 
@@ -206,14 +208,20 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-/** Replayed history → chat state; a refusal persists empty content by design. */
+/**
+ * Replayed history → chat state. A refusal persists empty content by design
+ * and is shown as the refusal copy; the one refusal that carries content is
+ * the project's own reply to a question about the visitor's data, shown as
+ * the assistant speaking, as it was live.
+ */
 function toChat(m: WidgetMessage, refusal: string): ChatMessage {
+  const spoken = m.refused && Boolean(m.content);
   return {
     role: m.role,
     text: m.refused && !m.content ? refusal : m.content,
     id: m.id,
     citations: m.citations ?? undefined,
-    refused: m.refused,
+    refused: m.refused && !spoken,
     feedback: m.feedback,
     feedbackReason: m.feedbackReason ?? null,
     actions: m.actions,
@@ -491,7 +499,7 @@ function Activity({
     ? `${copy.thinking}…`
     : [
         seconds === null ? "" : fill(copy.activityDone, { s: seconds }),
-        steps > 0 ? fill(copy.activitySteps, { n: steps }) : "",
+        steps > 0 ? fill(steps === 1 ? copy.activityStep : copy.activitySteps, { n: steps }) : "",
       ]
         .filter(Boolean)
         .join(" · ");
@@ -1223,7 +1231,16 @@ export function Panel({
           unsupportedTerms = event.unsupportedTerms;
           updateLast((m) => ({ ...m, unsupportedTerms: event.unsupportedTerms }));
         } else if (event.type === "refusal") {
-          updateLast((m) => settle({ ...m, pending: false, refused: true, text: copy.refusal }));
+          // A refusal carrying text is the project's own reply, spoken as an
+          // answer; without one the visitor reads the refusal copy.
+          const spoken = event.text;
+          updateLast((m) =>
+            settle(
+              spoken
+                ? { ...m, pending: false, text: spoken }
+                : { ...m, pending: false, refused: true, text: copy.refusal },
+            ),
+          );
           emit("refusal", { question, reason: event.reason });
         } else if (event.type === "clarify") {
           clarified = true;
@@ -1674,7 +1691,9 @@ export function Panel({
                         ) : null}
                         {m.citations && !m.refused && uniqueCitations(m.citations).length > 0 ? (
                           <div class="citations" part="citations">
-                            <span class="citations-label">{copy.sources}</span>
+                            <span class="citations-label" part="citations-label">
+                              {fill(copy.sources, { n: uniqueCitations(m.citations).length })}
+                            </span>
                             <div class="pills">
                               {uniqueCitations(m.citations).map((c) =>
                                 c.url ? (
@@ -1776,6 +1795,11 @@ export function Panel({
                         m.text &&
                         config.feedback ? (
                           <div class="feedback" part="feedback">
+                            {copy.feedbackPrompt ? (
+                              <span class="feedback-label" part="feedback-label">
+                                {copy.feedbackPrompt}
+                              </span>
+                            ) : null}
                             <button
                               type="button"
                               class={`fb${m.feedback === "up" ? " on" : ""}`}

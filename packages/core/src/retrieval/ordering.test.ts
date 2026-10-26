@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capPerDocument, orderCandidates } from "./ordering";
+import { capPerDocument, deepenTopDocument, orderCandidates } from "./ordering";
 import type { ScoredChunk } from "./vector-store";
 
 function chunk(
@@ -92,5 +92,46 @@ describe("capPerDocument", () => {
   it("0 means off — the cap is ranking-affecting and defaults that way", () => {
     const input = [doc("a1", "A"), doc("a2", "A"), doc("a3", "A")];
     expect(capPerDocument(input, 0)).toBe(input);
+  });
+});
+
+describe("deepenTopDocument", () => {
+  const doc = (id: string, documentId: string): ScoredChunk => ({
+    ...chunk(id, 0.5),
+    documentId,
+  });
+  const pool = [doc("a1", "A"), doc("b1", "B"), doc("a2", "A"), doc("c1", "C"), doc("a3", "A")];
+  const selected = capPerDocument(pool, 1);
+
+  it("appends the top document's next chunks after the selection, in pool order", () => {
+    expect(deepenTopDocument(pool, selected, 3).map((c) => c.chunkId)).toEqual([
+      "a1",
+      "b1",
+      "c1",
+      "a2",
+      "a3",
+    ]);
+  });
+
+  it("counts chunks the selection already holds against the allowance", () => {
+    const two = capPerDocument(pool, 2);
+    // a2 already sits in the selection, so only a3 is added.
+    expect(deepenTopDocument(pool, two, 3).map((c) => c.chunkId)).toEqual([
+      "a1",
+      "b1",
+      "a2",
+      "c1",
+      "a3",
+    ]);
+  });
+
+  it("1 means off, and an empty selection stays empty", () => {
+    expect(deepenTopDocument(pool, selected, 1)).toBe(selected);
+    expect(deepenTopDocument(pool, [], 3)).toEqual([]);
+  });
+
+  it("leaves the selection alone when the top document has nothing more in the pool", () => {
+    const single = [doc("b1", "B"), doc("a1", "A")];
+    expect(deepenTopDocument(single, capPerDocument(single, 1), 3)).toEqual(single);
   });
 });

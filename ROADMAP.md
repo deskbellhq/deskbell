@@ -12,6 +12,7 @@ Where v1 stands, area by area:
 |---|---|
 | Docs-site crawler → chunk → embed → store | **works** |
 | Grounded answers with citations and refusals | **works** |
+| A reply of your own for questions about the visitor's own account, when no action can look it up | **works** — Settings › Visitor data; counted as a refusal, never as a gap; drops out on turns that have tools |
 | Clarifying questions when the retrieved pages answer a question in more than one way | **works**, off by default — `DESKBELL_CLARIFY=on`; options are always retrieved page titles, asked at most once per conversation |
 | Embeddable widget (shadow DOM, brandable) | **works** |
 | Dashboard: Sources, Conversations, Appearance, Install, Members | **works** |

@@ -82,7 +82,10 @@ documentation did not answer, which is the most actionable signal the widget
 produces. Its `reason` is `no_context` when nothing relevant was retrieved,
 `no_grounding` when passages were retrieved but the model declined to answer
 from them, and `guardrail` when the answer failed for another reason. The
-widget shows the same copy for all of them.
+widget shows the same copy for all of them. A fourth reason, `no_access`, means
+the visitor asked about their own data and the widget showed the project's own
+reply instead ([Questions about the visitor's own data](/knowledge/own-data-questions));
+it is a refusal to the host and an answer to the visitor.
 
 [Clarifying questions](/knowledge/clarifying-questions) covers the behaviour
 behind the next two events.

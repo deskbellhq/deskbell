@@ -73,7 +73,7 @@ export function Sidebar(p: SidebarProps) {
       part="sidebar"
       aria-label={copy.threads}
     >
-      <div class="sidebar-head">
+      <div class="sidebar-head" part="sidebar-head">
         <button
           type="button"
           class="sidebar-btn"
@@ -84,6 +84,11 @@ export function Sidebar(p: SidebarProps) {
         >
           <Icon d={p.collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} />
         </button>
+        {p.collapsed ? null : (
+          <span class="sidebar-title" part="sidebar-title">
+            {copy.threads}
+          </span>
+        )}
         <button type="button" class="sidebar-btn new" part="new-thread-button" onClick={p.onNew}>
           <Icon d="M12 5v14M5 12h14" />
           {p.collapsed ? null : <span>{copy.newChat}</span>}

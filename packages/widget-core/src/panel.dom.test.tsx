@@ -211,6 +211,55 @@ describe("asking", () => {
   });
 });
 
+describe("own-data fallback (spec: own-data-fallback)", () => {
+  it("speaks a refusal that carries text as an answer, and still tells the host", async () => {
+    fake.ask.mockImplementation(() =>
+      stream([
+        { type: "refusal", reason: "no_access", text: "I can't see your **account** from here." },
+        { type: "done", conversationId: "conv_1", messageId: "msg_1" },
+      ]),
+    );
+    const { host } = mount({ mode: "inline" });
+    const heard: CustomEvent[] = [];
+    host.addEventListener("deskbell:refusal", (e) => heard.push(e as CustomEvent));
+    await sendQuestion("why is my score low?");
+    const bubble = (await screen.findByText(/from here\./)).closest(".bubble") as HTMLElement;
+    expect(bubble.classList.contains("md")).toBe(true);
+    expect(bubble.querySelector("strong")?.textContent).toBe("account");
+    expect(bubble.closest(".msg")?.classList.contains("refused")).toBe(false);
+    expect(heard[0]?.detail).toMatchObject({ reason: "no_access" });
+  });
+
+  it("replays a refused row with content as an answer, and one without as the refusal copy", async () => {
+    fake.messages.mockResolvedValue([
+      {
+        id: "m1",
+        role: "assistant",
+        content: "I can't see your account from here.",
+        citations: [],
+        refused: true,
+        feedback: null,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "m2",
+        role: "assistant",
+        content: "",
+        citations: [],
+        refused: true,
+        feedback: null,
+        createdAt: new Date().toISOString(),
+      },
+    ] satisfies WidgetMessage[]);
+    localStorage.setItem("deskbell-last-conv:pk", "conv_9");
+    const { host } = mount({ mode: "inline", resumeThread: "last" });
+    await screen.findByText("I couldn't find an answer to that in the docs.");
+    const spoken = screen.getByText("I can't see your account from here.").closest(".msg");
+    expect(spoken?.classList.contains("refused")).toBe(false);
+    expect(host.querySelectorAll(".msg.refused")).toHaveLength(1);
+  });
+});
+
 describe("answer verification (spec: answer-verification)", () => {
   const hedgeOf = (host: HTMLElement) =>
     waitFor(() => {
@@ -514,7 +563,7 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     expect(blocks?.[0]?.textContent).toBe("The visitor asks about an order. I will look it up.");
     expect(blocks?.[1]?.textContent).toBe("It shipped; answer plainly.");
     expect(group?.querySelector('[part="activity-summary"]')?.textContent).toMatch(
-      /^Worked for \d+s · 1 steps$/,
+      /^Worked for \d+s · 1 step$/,
     );
     expect(host.querySelector('[part="citations"]')).toBeNull();
   });
@@ -725,6 +774,43 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     // A replayed message has no timing, so the fold counts its steps only, and starts closed.
     const group = host.querySelector('[part="activity"]') as HTMLDetailsElement;
     expect(group.open).toBe(false);
-    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 steps");
+    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 step");
+  });
+});
+
+describe("labels a host can turn on (spec: answer-rendering-fixes)", () => {
+  it("counts the sources in the label and shows the feedback prompt", async () => {
+    fake.ask.mockReturnValue(
+      stream(
+        answer("Yes.", [
+          {
+            type: "citations",
+            citations: [
+              { documentId: "d1", url: "https://d.test/1", title: "One", snippet: "" },
+              { documentId: "d2", url: "https://d.test/2", title: "Two", snippet: "" },
+            ],
+          },
+        ]),
+      ),
+    );
+    const { host } = mount({
+      mode: "inline",
+      feedback: true,
+      copy: { sources: "Sources · {n}", feedbackPrompt: "Was this answer helpful?" },
+    } as Partial<WidgetConfig>);
+    await sendQuestion("does it?");
+    await screen.findByText("Yes.");
+    expect(host.querySelector('[part="citations-label"]')?.textContent).toBe("Sources · 2");
+    await waitFor(() => expect(host.querySelector('[part="feedback"]')).not.toBeNull());
+    expect(host.querySelector('[part="feedback-label"]')?.textContent).toBe(
+      "Was this answer helpful?",
+    );
+  });
+
+  it("names the thread rail in a title part", async () => {
+    fake.list.mockResolvedValue([]);
+    const { host } = mount({ mode: "inline", conversationHistory: true, historyLayout: "sidebar" });
+    await waitFor(() => expect(host.querySelector('[part="sidebar-title"]')).not.toBeNull());
+    expect(host.querySelector('[part="sidebar-head"]')).not.toBeNull();
   });
 });

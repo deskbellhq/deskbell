@@ -1,5 +1,5 @@
 {
-  "id": "3f5cf651-6a98-4126-8283-9fc201006949",
+  "id": "8dd84608-353b-47e6-bdfc-af9060988d0a",
   "prevId": "519b9d89-ea3a-4f9a-b1c2-8a1f2c9a1c38",
   "version": "7",
   "dialect": "postgresql",
@@ -906,22 +906,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "conversations_context_idx": {
-          "name": "conversations_context_idx",
-          "columns": [
-            {
-              "expression": "context",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last",
-              "opclass": "jsonb_path_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -1739,12 +1723,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "topic": {
-          "name": "topic",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1845,28 +1823,6 @@
           ],
           "isUnique": false,
           "where": "role = 'assistant' and (refused or feedback = 'down')",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "messages_topic_pending_idx": {
-          "name": "messages_topic_pending_idx",
-          "columns": [
-            {
-              "expression": "conversation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "role = 'user' and topic is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2220,6 +2176,13 @@
           "notNull": true,
           "default": 0
         },
+        "answer_style": {
+          "name": "answer_style",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "appearance": {
           "name": "appearance",
           "type": "jsonb",
@@ -2247,13 +2210,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
-        },
-        "topics": {
-          "name": "topics",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
         },
         "onboarding_dismissed_at": {
           "name": "onboarding_dismissed_at",

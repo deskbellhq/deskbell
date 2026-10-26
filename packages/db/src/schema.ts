@@ -6,6 +6,7 @@ import type {
   ActionServerInfo,
   ActionToolDefinition,
   ConversationContext,
+  ProjectAnswering,
   ProjectGaps,
   ProjectIdentity,
   ProjectNotifications,
@@ -105,6 +106,15 @@ export const projects = pgTable(
     /** What that run removed. */
     conversationsPurgedCount: integer("conversations_purged_count").notNull().default(0),
     /**
+     * How the assistant should sound (spec: answer-style): the project's own
+     * paragraph, appended to the grounding contract on every answer. Empty
+     * means the contract as shipped. Validated with AnswerStyleSchema on
+     * write. Read by the ask endpoint only; the public config endpoint never
+     * serves it, since the widget has no use for it and a visitor should not
+     * read the operator's instructions.
+     */
+    answerStyle: text("answer_style").notNull().default(""),
+    /**
      * Widget appearance authored in the dashboard and served to the widget by
      * GET /api/v1/config. Validated with WidgetAppearanceSchema on write, so
      * client-only options (project key, api url, branding) can never be stored
@@ -135,6 +145,14 @@ export const projects = pgTable(
      * organisation's name; an empty one strips nothing.
      */
     gaps: jsonb("gaps").$type<ProjectGaps>().notNull().default({}),
+    /**
+     * How the project answers what the content alone cannot (spec:
+     * own-data-fallback): `ownDataReply` is shown when a visitor asks about
+     * their own account and nothing on the turn can read it. Validated with
+     * ProjectAnsweringSchema on write. Server state: never served by the
+     * public config endpoint, it reaches the widget on the refusal event.
+     */
+    answering: jsonb("answering").$type<ProjectAnswering>().notNull().default({}),
     /**
      * What visitors ask about, as the operator names it (spec:
      * question-topics): the list the worker labels each question against,
@@ -584,7 +602,7 @@ export const messages = pgTable(
     retrievalMeanScore: real("retrieval_mean_score"),
     /** Why a refusal happened; null on an answer. */
     refusalReason: text("refusal_reason", {
-      enum: ["no_context", "no_grounding", "off_topic", "guardrail"],
+      enum: ["no_context", "no_grounding", "off_topic", "guardrail", "no_access"],
     }),
     /** Whether the model named the sources it used; false = citations are the whole retrieved set. */
     sourcesNamed: boolean("sources_named"),

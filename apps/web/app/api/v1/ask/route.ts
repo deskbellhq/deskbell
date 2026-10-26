@@ -101,6 +101,7 @@ export async function POST(request: Request) {
   let streaming = false;
   try {
     const verify = verifyFromEnv();
+    const ownDataReply = project.answering.ownDataReply;
     const engine = createEngine(
       {
         vectorStore: createVectorStore(db),
@@ -109,7 +110,13 @@ export async function POST(request: Request) {
         // record (spec: answer-verification); the engine only sees names.
         lookupTerms: (orgId, projectId, terms) => lookupTerms(db, orgId, projectId, terms),
       },
-      { retrieval: retrievalOptionsFromEnv(), clarify: clarifyFromEnv(), verify },
+      {
+        retrieval: retrievalOptionsFromEnv(),
+        clarify: clarifyFromEnv(),
+        verify,
+        // On only while the project has a reply to show (spec: own-data-fallback).
+        ownDataFallback: ownDataReply !== undefined,
+      },
     );
     // Names the project never wants flagged — the gaps page's list, reused.
     // Started here so it overlaps the conversation reads below; only paid
@@ -453,6 +460,9 @@ export async function POST(request: Request) {
             history,
             locale: parsed.data.locale,
             ignoredTerms,
+            // The project's voice (spec: answer-style); a row field, so a
+            // save on the settings page reaches the next answer.
+            answerStyle: project.answerStyle,
             ...(requestTools && requestTools.tools.length > 0 ? { tools: requestTools.tools } : {}),
             ...(resume ? { resume } : {}),
             onAction,
@@ -497,6 +507,14 @@ export async function POST(request: Request) {
               // a sentence before refusing: the widget replaced that sentence
               // with the refusal copy, and the replay must show the same.
               answerText = "";
+              if (event.reason === "no_access" && ownDataReply !== undefined) {
+                // The one refusal that persists text (spec: own-data-fallback):
+                // the project's reply is what the visitor read, what the
+                // replay shows, and what the model reads back as history so
+                // it does not say it twice.
+                answerText = ownDataReply;
+                event = { type: "refusal", reason: event.reason, text: ownDataReply };
+              }
             }
             if (event.type === "clarify") {
               clarified = true;

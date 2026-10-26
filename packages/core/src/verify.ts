@@ -105,12 +105,19 @@ function isLocator(candidate: string): boolean {
   return false;
 }
 
+/**
+ * A bold span that ends in a colon labels what follows ("**Open the
+ * attribute:** select Edit"): a heading the model wrote, not a name it
+ * asserts. A name used as a label keeps the colon outside the bold and is
+ * still checked.
+ */
+function isHeading(raw: string): boolean {
+  return raw.trim().endsWith(":");
+}
+
 /** Trims decoration and decides whether the span is a name worth checking. */
 function candidateOf(raw: string, opts: { code: boolean }): string | null {
-  const candidate = raw
-    .trim()
-    .replace(/[:.]+$/u, "")
-    .trim();
+  const candidate = raw.trim().replace(/\.+$/u, "").trim();
   if (candidate.length < 3 || candidate.length > 80) return null;
   if (!/\p{L}/u.test(candidate)) return null;
   if (opts.code && (/\s/.test(candidate) || candidate.length > 40)) return null;
@@ -143,6 +150,7 @@ export function extractTerms(answer: string): string[] {
     found.push(candidate);
   };
   const addWithParts = (raw: string, opts: { code: boolean }) => {
+    if (isHeading(raw)) return;
     add(raw, opts);
     if (!opts.code && PATH_SEPARATORS.test(raw)) {
       for (const part of raw.split(PATH_SEPARATORS)) add(part, opts);

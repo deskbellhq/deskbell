@@ -25,6 +25,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { clarifyFromEnv } from "../packages/core/src/clarify-config";
+import { ownDataFromEnv } from "../packages/core/src/own-data-config";
 import { verifyFromEnv } from "../packages/core/src/verify-config";
 import { buildFixture } from "../packages/evals/src/fixtures/index";
 import {
@@ -72,6 +73,7 @@ const { values } = parseArgs({
     "ef-search": { type: "string" },
     pool: { type: "string" },
     "max-per-doc": { type: "string" },
+    "top-doc-chunks": { type: "string" },
     order: { type: "string" },
     rerank: { type: "string" },
     "rerank-model": { type: "string" },
@@ -122,6 +124,7 @@ function assertNoSweepFlagsOutsideProject(context: string): void {
     "ef-search",
     "pool",
     "max-per-doc",
+    "top-doc-chunks",
     "order",
     "rerank",
     "rerank-model",
@@ -209,6 +212,9 @@ async function buildTarget(): Promise<BuiltTarget> {
       ...(values["max-per-doc"] === undefined
         ? {}
         : { maxPerDocument: int("--max-per-doc", values["max-per-doc"]) }),
+      ...(values["top-doc-chunks"] === undefined
+        ? {}
+        : { topDocumentChunks: int("--top-doc-chunks", values["top-doc-chunks"]) }),
       ...(values.order === undefined
         ? {}
         : { order: choice("--order", values.order, ["fused", "cosine"]) }),
@@ -241,7 +247,9 @@ async function buildTarget(): Promise<BuiltTarget> {
   // Clarification only with a real model: the stub never asks, and the
   // fixture's prompt fingerprint must not move when nothing can change.
   const fixture = await buildFixture(
-    generate ? { generate, clarify: clarifyFromEnv(), verify: verifyFromEnv() } : {},
+    generate
+      ? { generate, clarify: clarifyFromEnv(), verify: verifyFromEnv(), ownData: ownDataFromEnv() }
+      : {},
   );
   return {
     k: fixture.k,

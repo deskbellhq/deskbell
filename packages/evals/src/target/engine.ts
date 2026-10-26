@@ -12,6 +12,8 @@ export interface EngineTargetOptions {
   orgId: string;
   projectId: string;
   name?: string;
+  /** The project's style paragraph (spec: answer-style), as the product would send it. */
+  answerStyle?: string;
   /**
    * Stop each case after retrieval — no generation, no tokens, no answer. The
    * harness pairs this with a run that grades nothing (spec:
@@ -56,6 +58,7 @@ export function createEngineTarget(opts: EngineTargetOptions): Target {
         // Scripted prior turns, as the product would load them (spec:
         // answer-verification): the follow-up is asked in its thread.
         ...(evalCase.history ? { history: evalCase.history } : {}),
+        ...(opts.answerStyle ? { answerStyle: opts.answerStyle } : {}),
         retrievalOnly: opts.retrievalOnly,
         onUsage: (u) => {
           usage.input += u.input;

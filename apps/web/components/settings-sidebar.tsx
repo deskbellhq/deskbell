@@ -16,9 +16,11 @@ import {
   Bell,
   CircleUser,
   Code2,
+  Database,
   Hourglass,
   KeyRound,
   type LucideIcon,
+  MessageSquareText,
   Palette,
   SearchX,
   Tags,
@@ -35,6 +37,8 @@ const accountGroup: SettingsItem[] = [
 ];
 const workspaceGroup: SettingsItem[] = [
   { title: "Members", url: "/settings/members", icon: Users },
+  { title: "Answer style", url: "/settings/answer-style", icon: MessageSquareText },
+  { title: "Visitor data", url: "/settings/visitor-data", icon: Database },
   { title: "Gaps", url: "/settings/gaps", icon: SearchX },
   { title: "Topics", url: "/settings/topics", icon: Tags },
   { title: "Data retention", url: "/settings/retention", icon: Hourglass },

@@ -63,7 +63,7 @@ aborts when its panel closes.
 |---|---|---|
 | `token` | `value` | The next piece of the answer text |
 | `citations` | `citations[]` | The documents the answer draws on: `documentId`, `title`, `snippet`, optional `url` |
-| `refusal` | `reason` | No grounded answer. `no_context`: nothing relevant was retrieved. `no_grounding`: something was, and the model declined to answer from it |
+| `refusal` | `reason`, `text?` | No grounded answer. `no_context`: nothing relevant was retrieved. `no_grounding`: something was, and the model declined to answer from it. `no_access`: the question needs the visitor's own data, and `text` is the project's reply to show in its place |
 | `clarify` | `question`, `options[]` | The pages answer the question in more than one way. Show the question, offer the options (page titles), and send the pick as the next message in the same conversation. Only with `DESKBELL_CLARIFY=on` on the server; see [Clarifying questions](/knowledge/clarifying-questions) |
 | `done` | `conversationId`, `messageId` | The answer is complete and persisted |
 

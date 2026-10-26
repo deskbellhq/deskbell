@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { Markdown } from "./render.tsx";
 
 describe("Markdown", () => {
+  it("renders a pipe table inside the md-table part with its alignment", () => {
+    const html = render(
+      <Markdown source={"| Plan | Limit |\n|---|---:|\n| Starter | **100** |"} />,
+    );
+    expect(html).toContain('<div part="md-table" class="md-table"><table>');
+    expect(html).toContain("<th>Plan</th>");
+    expect(html).toContain('<td style="text-align:right;"><strong>100</strong></td>');
+    expect(html).not.toContain("|---");
+  });
+
   it("renders structure with parts and escapes everything the model wrote", () => {
     const html = render(
       <Markdown source={'## Steps\n1. Run `npm i`\n2. Open <b>x</b>\n\n```sh\necho "<hi>"\n```'} />,
