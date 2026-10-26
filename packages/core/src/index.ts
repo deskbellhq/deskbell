@@ -14,6 +14,8 @@ export {
   type EngineResume,
   type EngineTool,
   type GenerationPart,
+  OWN_DATA_PROMPT,
+  OWN_DATA_SENTINEL,
   parseClarify,
   REFUSAL_SENTINEL,
   type RetrievalOptions,
@@ -28,6 +30,7 @@ export {
 export { chunkOptionsFromEnv } from "./ingest/chunk-config";
 export { type ChunkOptions, chunkText } from "./ingest/chunker";
 export { detectInjectionSignals, type InjectionSignal } from "./ingest/injection";
+export { ownDataFromEnv } from "./own-data-config";
 export { retrievalOptionsFromEnv } from "./retrieval/config";
 export {
   createVectorStore,

@@ -1,7 +1,7 @@
 ---
 title: Hallucinations
 description: The three ways an answer from documentation goes wrong, the check Deskbell runs for each, where you see it in the dashboard, how to measure it, and what no check catches.
-updated: 2026-10-16
+updated: 2026-10-23
 ---
 
 An assistant that answers from documentation can go wrong in three ways. It can
@@ -16,6 +16,7 @@ through.
 | The answer | The check | Where you see it |
 |---|---|---|
 | Answers when the content has no answer | Refusal: nothing retrieved, or the model declines to answer from what was retrieved | **Refused** on the Conversations and Gaps pages |
+| Diagnoses the visitor's own account from pages about the feature | The own-data rule: a question that needs the visitor's data gets the project's reply instead (off until a reply is written) | **No access to visitor data** on the Conversations page; never on the Gaps page |
 | Answers from a page that barely matched | The weak floor: an answer whose best page scored under it is marked | **Weak answer** on the Gaps page; the thread reads **Uncertain** |
 | Picks one reading of an ambiguous question | A clarifying question back, with the pages as options (off by default) | **Asked to clarify** on the message |
 | Names a feature, setting, button or page that does not exist | Verification: every name the answer asserts is looked up in your content | The sentence under the answer; **Unsupported name** on the message and the Gaps page |
@@ -57,6 +58,13 @@ Some questions have more than one honest answer because the visitor did not
 say which thing they meant. With `DESKBELL_CLARIFY=on` the assistant asks
 which, offering only pages retrieval returned
 ([Clarifying questions](/knowledge/clarifying-questions)).
+
+A question about the visitor's own account is a different failure: the pages
+about the feature are good, the fact asked for is in the visitor's data, and
+a model holding the pages tends to write a diagnosis as if it had looked.
+With a reply written under **Settings › Visitor data**, the model is told to name
+that case with a sentinel of its own, and the visitor reads your reply in its
+place ([Questions about the visitor's own data](/knowledge/own-data-questions)).
 
 ## Citations that can be checked
 

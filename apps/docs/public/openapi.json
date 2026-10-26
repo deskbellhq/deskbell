@@ -207,8 +207,13 @@
                             "no_context",
                             "no_grounding",
                             "off_topic",
-                            "guardrail"
+                            "guardrail",
+                            "no_access"
                           ]
+                        },
+                        "text": {
+                          "description": "What to show instead of the refusal copy: the project's own reply to a `no_access` refusal, the question needing the visitor's data that nothing on the turn could read.",
+                          "type": "string"
                         }
                       },
                       "required": [

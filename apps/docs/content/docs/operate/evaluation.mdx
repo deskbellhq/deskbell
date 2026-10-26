@@ -148,6 +148,13 @@ clear error. The judge is shown the thread when a case carries one, and when
 the setting is on the run prints every flagged name to standard error, since
 reports hold counts and never answer text.
 
+The built-in `own-data` set measures the rule behind
+[Questions about the visitor's own data](/knowledge/own-data-questions):
+unanswerable cases that ask about the visitor's own account, beside answerable
+how-to cases about the same features. Run it with `DESKBELL_OWN_DATA=on` and a
+real model; a rule that fires on every "my" shows up as false refusals on the
+how-to cases.
+
 `tags` is optional and free-form. Tag a case with the failure modes it exposes
 and the report counts them across every case that fell short, so you can see
 which mode dominates instead of re-deriving it from the reasons each time:

@@ -6,6 +6,7 @@ import type {
   ActionServerInfo,
   ActionToolDefinition,
   ConversationContext,
+  ProjectAnswering,
   ProjectGaps,
   ProjectIdentity,
   ProjectNotifications,
@@ -143,6 +144,14 @@ export const projects = pgTable(
      * organisation's name; an empty one strips nothing.
      */
     gaps: jsonb("gaps").$type<ProjectGaps>().notNull().default({}),
+    /**
+     * How the project answers what the content alone cannot (spec:
+     * own-data-fallback): `ownDataReply` is shown when a visitor asks about
+     * their own account and nothing on the turn can read it. Validated with
+     * ProjectAnsweringSchema on write. Server state: never served by the
+     * public config endpoint, it reaches the widget on the refusal event.
+     */
+    answering: jsonb("answering").$type<ProjectAnswering>().notNull().default({}),
     /**
      * First-run checklist dismissed (spec: single-tag-embed-deploy-onboarding).
      * The steps themselves are derived from live rows, never stored.
@@ -581,7 +590,7 @@ export const messages = pgTable(
     retrievalMeanScore: real("retrieval_mean_score"),
     /** Why a refusal happened; null on an answer. */
     refusalReason: text("refusal_reason", {
-      enum: ["no_context", "no_grounding", "off_topic", "guardrail"],
+      enum: ["no_context", "no_grounding", "off_topic", "guardrail", "no_access"],
     }),
     /** Whether the model named the sources it used; false = citations are the whole retrieved set. */
     sourcesNamed: boolean("sources_named"),

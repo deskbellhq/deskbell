@@ -14,6 +14,7 @@ const REFUSAL_LABELS: Record<RefusalReason, string> = {
   no_grounding: "No grounded answer",
   off_topic: "Off topic",
   guardrail: "Blocked by guardrail",
+  no_access: "No access to visitor data",
 };
 
 export function refusalLabel(reason: string | null | undefined): string {

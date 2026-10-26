@@ -173,7 +173,13 @@ const answerEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("citations"), citations: z.array(citation) }),
   z.object({
     type: z.literal("refusal"),
-    reason: z.enum(["no_context", "no_grounding", "off_topic", "guardrail"]),
+    reason: z.enum(["no_context", "no_grounding", "off_topic", "guardrail", "no_access"]),
+    text: z
+      .string()
+      .optional()
+      .describe(
+        "What to show instead of the refusal copy: the project's own reply to a `no_access` refusal, the question needing the visitor's data that nothing on the turn could read.",
+      ),
   }),
   z.object({
     type: z.literal("verification"),

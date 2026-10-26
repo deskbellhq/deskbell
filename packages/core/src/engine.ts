@@ -295,6 +295,15 @@ export interface EngineOptions {
    * it changes the prompt and adds a lookup to the answer path.
    */
   verify?: boolean;
+  /**
+   * Recognise a question about the visitor's own account that the context
+   * cannot answer, and refuse it with its own reason instead of guessing or
+   * refusing for lack of grounding (spec: own-data-fallback). Off by default
+   * for the same reason as the other two: it changes the prompt. Applies only
+   * to turns without tools; with tools, the tools contract already routes
+   * such a question to a tool.
+   */
+  ownDataFallback?: boolean;
 }
 
 export interface EngineDeps {
@@ -370,35 +379,63 @@ Do not refer to block numbers anywhere else in the answer; the reader cannot see
 /** The sentinel the system prompt above demands for a refusal. */
 export const REFUSAL_SENTINEL = "NO_GROUNDING";
 
-/** The sentinel as a word of its own, wherever it stands in the text. */
-const LATE_SENTINEL = new RegExp(`(?<![A-Za-z0-9_])${REFUSAL_SENTINEL}(?![A-Za-z0-9_])`);
+/**
+ * The sentinel the own-data paragraph demands when the question needs the
+ * visitor's own data (spec: own-data-fallback). Recognised only when that
+ * paragraph was sent, so a model that was never told the word cannot refuse
+ * with it by accident.
+ */
+export const OWN_DATA_SENTINEL = "NO_ACCESS";
+
+/** A sentinel as a word of its own, wherever it stands in the text. */
+const lateSentinelPattern = (sentinel: string) =>
+  new RegExp(`(?<![A-Za-z0-9_])${sentinel}(?![A-Za-z0-9_])`);
+const LATE_SENTINELS = new Map(
+  [REFUSAL_SENTINEL, OWN_DATA_SENTINEL].map((s) => [s, lateSentinelPattern(s)] as const),
+);
 
 /**
- * Whether text that has already left the start-anchored hold carries the
- * sentinel after all. The contract asks for the sentinel alone, but a model
- * sometimes writes a sentence first — "The documentation does not cover
- * this. NO_GROUNDING" — and a visitor must not read the word. It is a
- * refusal either way: the model declined to answer from the context, and the
- * prose before it was the model talking itself into that.
+ * Whether text that has already left the start-anchored hold carries a
+ * sentinel after all, and which. The contract asks for the sentinel alone,
+ * but a model sometimes writes a sentence first — "The documentation does
+ * not cover this. NO_GROUNDING" — and a visitor must not read the word. It
+ * is a refusal either way: the model declined to answer from the context,
+ * and the prose before it was the model talking itself into that.
  */
+export function lateSentinel(
+  text: string,
+  sentinels: readonly string[] = [REFUSAL_SENTINEL],
+): string | null {
+  for (const sentinel of sentinels) {
+    const pattern = LATE_SENTINELS.get(sentinel) ?? lateSentinelPattern(sentinel);
+    if (pattern.test(text)) return sentinel;
+  }
+  return null;
+}
+
+/** `lateSentinel` as a yes/no, for the refusal sentinel alone. */
 export function hasLateSentinel(text: string): boolean {
-  return LATE_SENTINEL.test(text);
+  return lateSentinel(text) !== null;
 }
 
 /**
- * Hold back the end of `text` while it could still grow into the sentinel:
- * the longest tail that is a proper prefix of it, standing at a word
+ * Hold back the end of `text` while it could still grow into a sentinel:
+ * the longest tail that is a proper prefix of one, standing at a word
  * boundary. "…the answer is NO" holds "NO" for one more token; "…NOW" holds
  * nothing, since "NOW" is not a prefix; "…ANNO" holds nothing, since the
  * "NO" there continues a word.
  */
-export function splitSentinelTail(text: string): { emit: string; hold: string } {
-  const longest = Math.min(text.length, REFUSAL_SENTINEL.length - 1);
+export function splitSentinelTail(
+  text: string,
+  sentinels: readonly string[] = [REFUSAL_SENTINEL],
+): { emit: string; hold: string } {
+  const longest = Math.min(text.length, Math.max(...sentinels.map((s) => s.length)) - 1);
   for (let n = longest; n >= 1; n--) {
     const start = text.length - n;
-    if (!REFUSAL_SENTINEL.startsWith(text.slice(start))) continue;
+    const tail = text.slice(start);
+    if (!sentinels.some((s) => s.startsWith(tail))) continue;
     if (start > 0 && /[A-Za-z0-9_]/.test(text[start - 1] as string)) continue;
-    return { emit: text.slice(0, start), hold: text.slice(start) };
+    return { emit: text.slice(0, start), hold: tail };
   }
   return { emit: text, hold: "" };
 }
@@ -446,6 +483,20 @@ export const CLARIFY_ONCE_PROMPT = `You already asked the visitor a clarifying q
  */
 export const VERIFY_PROMPT = `When you name a feature, setting, button, page or option that you assert exists, write its exact name in bold, as the documentation writes it. Do not bold anything else, and never bold a name you are saying does not exist.`;
 
+/**
+ * Appended to the grounding contract only when the own-data fallback is on
+ * and the turn has no tools (spec: own-data-fallback), so the prompt is
+ * byte-identical with it off. A rule, not a classifier: the model already
+ * tells "how does X work" from "what is X on my account", and the eval cases
+ * are what make that measurable. The carve-outs matter as much as the rule —
+ * a how-to question that mentions the visitor's account is still a
+ * documentation question, a change request gets the documented steps, and
+ * details the visitor has already shared are worked with, not asked for
+ * again. The reply the visitor reads is the host's; the model only names the
+ * outcome.
+ */
+export const OWN_DATA_PROMPT = `You cannot see the visitor's own account, data, settings or activity, and nothing available on this turn can. When the visitor asks what is true in their own account — their configuration, their records, their status, why something of theirs behaves as it does — and the context cannot answer without that data, do not guess and do not write a diagnosis: respond with exactly NO_ACCESS. A question about how the product works, or how to do something, is a documentation question; answer it from the context as usual, even when it mentions the visitor's own account. If the visitor asks you to change something in their account, answer with the documented steps for doing it themselves, and never say that a change was made, applied or checked. Once the visitor has shared the details themselves — their settings, the values, the error they see — work with what they shared instead of responding with NO_ACCESS.`;
+
 export interface SystemPromptOptions {
   /** Overrides the grounding contract; defaults to SYSTEM_PROMPT. */
   base?: string;
@@ -453,6 +504,8 @@ export interface SystemPromptOptions {
   /** A clarifying question was already asked in this thread. */
   asked?: boolean;
   verify?: boolean;
+  /** The own-data rule applies to this turn (spec: own-data-fallback). */
+  ownData?: boolean;
   /** The project's style paragraph (spec: answer-style); blank appends nothing. */
   answerStyle?: string;
 }
@@ -467,6 +520,7 @@ export function buildSystemPrompt(opts: SystemPromptOptions = {}): string {
   let prompt = opts.base ?? SYSTEM_PROMPT;
   if (opts.clarify) prompt = `${prompt}\n\n${opts.asked ? CLARIFY_ONCE_PROMPT : CLARIFY_PROMPT}`;
   if (opts.verify) prompt = `${prompt}\n\n${VERIFY_PROMPT}`;
+  if (opts.ownData) prompt = `${prompt}\n\n${OWN_DATA_PROMPT}`;
   // Last, so the style shades the contract without a word of it moving
   // (spec: answer-style). Trimmed here as well as on write: an engine fed
   // whitespace by another host must not send a prompt that hashes differently.
@@ -615,11 +669,20 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
   const order = options.retrieval?.order ?? RETRIEVAL_DEFAULTS.order;
   const clarify = options.clarify ?? false;
   const verify = options.verify ?? false;
+  const ownDataFallback = options.ownDataFallback ?? false;
 
   return {
     async *ask(input: AskInput): AsyncIterable<AnswerEvent> {
       const tools = input.tools ?? [];
       const hasTools = tools.length > 0;
+      // The own-data rule is the no-tools half of a rule the tools contract
+      // already carries (spec: own-data-fallback): with tools, a question
+      // about the visitor's data is answered by calling one, so the paragraph
+      // is not sent and the word is not a sentinel.
+      const ownData = ownDataFallback && !hasTools;
+      const sentinels = ownData ? [REFUSAL_SENTINEL, OWN_DATA_SENTINEL] : [REFUSAL_SENTINEL];
+      const reasonOf = (sentinel: string): "no_grounding" | "no_access" =>
+        sentinel === OWN_DATA_SENTINEL ? "no_access" : "no_grounding";
       const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
       let hits: ScoredChunk[] = [];
       // A resumed turn retrieves nothing: its context was built when it
@@ -717,7 +780,8 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         (input.history ?? []).some((turn) => turn.role === "assistant" && turn.clarified === true);
       let buffer = "";
       let holding = true;
-      let refused = false;
+      // Which sentinel the model refused with, or null while it has not.
+      let refused: string | null = null;
       let clarifying = false;
       let tail = "";
       // Everything the visitor was sent, in order. The holds above stop
@@ -742,6 +806,7 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
             clarify,
             asked,
             verify,
+            ownData,
             answerStyle: input.answerStyle,
           }) + (hasTools ? TOOLS_PROMPT : ""),
         context,
@@ -778,7 +843,7 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
               // already streamed (a model may narrate "let me check"); what is
               // still held is prose unless it is a sources line, and a refusal
               // the model began before deciding to call a tool is withdrawn.
-              refused = false;
+              refused = null;
               clarifying = false;
               if (!holding && tail && parseSourcesTail(tail).indices === null) {
                 yield say(tail);
@@ -841,10 +906,11 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         }
         if (!holding) {
           const pending = tail + token;
-          if (hasLateSentinel(pending)) {
+          const late = lateSentinel(pending, sentinels);
+          if (late) {
             // A refusal after prose. What was already sent is withdrawn by the
             // refusal event; what is held is dropped here.
-            refused = true;
+            refused = late;
             tail = "";
             continue;
           }
@@ -855,7 +921,7 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
             tail = split.hold;
             if (split.emit) yield say(split.emit);
           } else {
-            const guarded = splitSentinelTail(split.emit);
+            const guarded = splitSentinelTail(split.emit, sentinels);
             tail = guarded.hold;
             if (guarded.emit) yield say(guarded.emit);
           }
@@ -863,11 +929,12 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         }
         buffer += token;
         const candidate = buffer.trim();
-        if (candidate === REFUSAL_SENTINEL) {
-          refused = true;
+        const whole = sentinels.find((s) => s === candidate);
+        if (whole) {
+          refused = whole;
           continue;
         }
-        if (REFUSAL_SENTINEL.startsWith(candidate)) continue;
+        if (sentinels.some((s) => s.startsWith(candidate))) continue;
         if (clarify) {
           if (candidate.startsWith(CLARIFY_SENTINEL)) {
             clarifying = true;
@@ -890,7 +957,7 @@ export function createEngine(deps: EngineDeps, options: EngineOptions = {}): Ans
         return;
       }
       if (refused) {
-        yield { type: "refusal", reason: "no_grounding" };
+        yield { type: "refusal", reason: reasonOf(refused) };
         return;
       }
       if (clarifying) {

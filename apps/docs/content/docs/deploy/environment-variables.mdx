@@ -97,6 +97,7 @@ database, or use *Reindex* on the Sources page.
 | `DESKBELL_VECTOR_STORE` | `pgvector` | `weaviate` moves the search index to a Weaviate cluster you run; see [Vector store](/deploy/vector-store) |
 | `DESKBELL_CLARIFY` | `off` | `on` lets the engine ask which reading the visitor meant when the retrieved pages answer the question in more than one way |
 | `DESKBELL_VERIFY` | `on` | Asks the model to bold the names it asserts and checks each against the retrieved pages and the whole index once the answer has streamed; a name found nowhere is spoken as a caveat under the answer and flagged on the Gaps page. `off` restores the shorter prompt |
+| `DESKBELL_OWN_DATA` | `off` | Eval runs only: `on` applies the own-data rule to the run's engine, which the product switches per project from the reply under **Settings › Visitor data**. See [Questions about the visitor's own data](/knowledge/own-data-questions) |
 
 `always` expands first questions as well as follow-ups, which improves retrieval
 at the cost of one extra model call on every question. `off` searches the

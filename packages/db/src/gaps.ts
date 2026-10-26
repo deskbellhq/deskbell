@@ -105,10 +105,12 @@ export const gapQuestionSql = sql<
  * Refusal reasons the docs did not cause (spec: refusal-scope-and-thread-counts).
  * `guardrail` is what the ask route records when the engine throws — an outage
  * or a bug, not a missing page. `off_topic` is a question the docs were never
- * meant to answer. Both stay refusals everywhere a refusal is shown; neither
- * is a gap. Keep in step with `classifyAnswer` in the web app.
+ * meant to answer. `no_access` is a question about the visitor's own data,
+ * which no page can hold (spec: own-data-fallback). All three stay refusals
+ * everywhere a refusal is shown; none is a gap. Keep in step with
+ * `classifyAnswer` in the web app.
  */
-export const NON_GAP_REFUSAL_REASONS = ["guardrail", "off_topic"] as const;
+export const NON_GAP_REFUSAL_REASONS = ["guardrail", "off_topic", "no_access"] as const;
 
 /**
  * The signals that make an assistant message a gap (spec: answer-signal):
