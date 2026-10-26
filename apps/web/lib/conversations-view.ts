@@ -36,12 +36,24 @@ export const PERIOD_LABELS: Record<PeriodKey, string> = {
   custom: "Custom range",
 };
 
+/** One context key with one id a thread must carry (spec: usage-page). */
+export interface ContextFilter {
+  key: string;
+  id: string;
+}
+
 export interface ConversationsView {
   filter: ConversationsFilter;
   period: PeriodKey;
   /** Both set for a custom period, YYYY-MM-DD in UTC, from <= to; null otherwise. */
   from: string | null;
   to: string | null;
+  /** Threads with a question labelled with this topic key (spec: question-topics); null for any. */
+  topic: string | null;
+  /** Threads whose context carries this key with this id; null for any. */
+  context: ContextFilter | null;
+  /** Threads owned by this verified visitor (`end_users.id`); null for any. */
+  user: string | null;
 }
 
 export const DEFAULT_VIEW: ConversationsView = {
@@ -49,7 +61,18 @@ export const DEFAULT_VIEW: ConversationsView = {
   period: DEFAULT_PERIOD,
   from: null,
   to: null,
+  topic: null,
+  context: null,
+  user: null,
 };
+
+/** The usage page's spellings: a topic key, and a context key as the widget's schema states it. */
+const TOPIC_KEY = /^[a-z][a-z0-9_-]{0,47}$/;
+const CONTEXT_KEY = /^[a-z][a-z0-9_-]{0,63}$/i;
+const CONTEXT_ID_MAX = 128;
+const CONTEXT_PREFIX = "ctx.";
+/** An end-user id as the server mints it; anything else is ignored. */
+const USER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Inclusive UTC calendar days, the chart's buckets. */
 export interface DayRange {
@@ -80,25 +103,44 @@ export function parseDay(value: Param): string | null {
  * needs both ends (swapped into order when reversed); anything else is all
  * time. A bad value is ignored, never an error.
  */
-export function parseView(params: {
-  filter?: Param;
-  period?: Param;
-  from?: Param;
-  to?: Param;
-}): ConversationsView {
+export function parseView(params: Record<string, Param>): ConversationsView {
   const filter = parseFilter(params.filter);
+  const topic = parseTopic(params.topic);
+  const context = parseContext(params);
+  const user = parseUser(params.user);
   const period = first(params.period);
   if ((RELATIVE_PERIODS as readonly string[]).includes(period ?? "")) {
-    return { filter, period: period as PeriodKey, from: null, to: null };
+    return { filter, period: period as PeriodKey, from: null, to: null, topic, context, user };
   }
   const from = parseDay(params.from);
   const to = parseDay(params.to);
   if (from && to) {
     return from <= to
-      ? { filter, period: "custom", from, to }
-      : { filter, period: "custom", from: to, to: from };
+      ? { filter, period: "custom", from, to, topic, context, user }
+      : { filter, period: "custom", from: to, to: from, topic, context, user };
   }
-  return { filter, period: DEFAULT_PERIOD, from: null, to: null };
+  return { filter, period: DEFAULT_PERIOD, from: null, to: null, topic, context, user };
+}
+
+function parseTopic(value: Param): string | null {
+  const v = first(value);
+  return v && TOPIC_KEY.test(v) ? v : null;
+}
+
+function parseUser(value: Param): string | null {
+  const v = first(value);
+  return v && USER_ID.test(v) ? v : null;
+}
+
+/** The first `ctx.<key>=<id>` pair; the inbox filters on one. */
+function parseContext(params: Record<string, Param>): ContextFilter | null {
+  for (const [name, value] of Object.entries(params)) {
+    if (!name.startsWith(CONTEXT_PREFIX)) continue;
+    const key = name.slice(CONTEXT_PREFIX.length);
+    const id = first(value);
+    if (CONTEXT_KEY.test(key) && id && id.length <= CONTEXT_ID_MAX) return { key, id };
+  }
+  return null;
 }
 
 /** A link to a view; defaults are omitted from the URL. */
@@ -111,6 +153,9 @@ export function conversationsHref(pathname: string, view: ConversationsView): st
   } else if (view.period !== DEFAULT_PERIOD && view.period !== "custom") {
     params.set("period", view.period);
   }
+  if (view.topic) params.set("topic", view.topic);
+  if (view.context) params.set(`${CONTEXT_PREFIX}${view.context.key}`, view.context.id);
+  if (view.user) params.set("user", view.user);
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;
 }

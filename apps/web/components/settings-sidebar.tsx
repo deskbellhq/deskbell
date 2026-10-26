@@ -23,6 +23,7 @@ import {
   MessageSquareText,
   Palette,
   SearchX,
+  Tags,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -39,6 +40,7 @@ const workspaceGroup: SettingsItem[] = [
   { title: "Answer style", url: "/settings/answer-style", icon: MessageSquareText },
   { title: "Visitor data", url: "/settings/visitor-data", icon: Database },
   { title: "Gaps", url: "/settings/gaps", icon: SearchX },
+  { title: "Topics", url: "/settings/topics", icon: Tags },
   { title: "Data retention", url: "/settings/retention", icon: Hourglass },
 ];
 const widgetGroup: SettingsItem[] = [

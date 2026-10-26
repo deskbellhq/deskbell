@@ -121,6 +121,9 @@ export function AnswersChart({ data }: { data: ChartPoint[] }) {
             period: "custom",
             from: date,
             to: date,
+            topic: null,
+            context: null,
+            user: null,
           }),
         );
     },

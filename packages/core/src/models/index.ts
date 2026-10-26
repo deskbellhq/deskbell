@@ -24,6 +24,7 @@ import { type ConversationTitler, createConversationTitler } from "./conversatio
 import { createFeedbackSummarizer, type FeedbackSummarizer } from "./feedback-summarizer";
 import { createGapAnalyst, type GapAnalyst } from "./gap-analyst";
 import { createQueryPlanner } from "./query-planner";
+import { createQuestionClassifier, type QuestionClassifier } from "./question-classifier";
 import { createReranker } from "./reranker";
 
 /**
@@ -746,6 +747,18 @@ export function createConversationTitlerDeps(
   return createConversationTitler(languageModel, chatModelId(env));
 }
 export type { ConversationTitler } from "./conversation-titler";
+
+/**
+ * The question classifier for the worker (spec: question-topics). Same
+ * shape as the titler: built for the worker, never on the answer path,
+ * model constructed on first use.
+ */
+export function createQuestionClassifierDeps(
+  env: NodeJS.ProcessEnv = process.env,
+): QuestionClassifier {
+  return createQuestionClassifier(languageModel, chatModelId(env));
+}
+export type { ClassifierInput, QuestionClassifier, TopicChoice } from "./question-classifier";
 
 /**
  * The feedback summarizer for the worker (spec: project-notifications).

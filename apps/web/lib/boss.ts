@@ -1,6 +1,7 @@
 import {
   type AnalyzeGapClusterJob,
   type AssignGapClusterJob,
+  type ClassifyQuestionJob,
   type DeliverNotificationJob,
   type GapsCatchupJob,
   type IngestDocumentJob,
@@ -8,6 +9,7 @@ import {
   type PurgeConversationsJob,
   QUEUE_ANALYZE_GAP_CLUSTER,
   QUEUE_ASSIGN_GAP_CLUSTER,
+  QUEUE_CLASSIFY_QUESTION,
   QUEUE_GAPS_CATCHUP,
   QUEUE_INGEST_DOCUMENT,
   QUEUE_INGEST_SOURCE,
@@ -15,8 +17,10 @@ import {
   QUEUE_PURGE_CONVERSATIONS,
   QUEUE_REINDEX_EMBEDDINGS,
   QUEUE_TITLE_CONVERSATION,
+  QUEUE_TOPICS_CATCHUP,
   type ReindexEmbeddingsJob,
   type TitleConversationJob,
+  type TopicsCatchupJob,
 } from "@deskbell/shared";
 import { PgBoss } from "pg-boss";
 
@@ -41,6 +45,8 @@ async function createBoss(): Promise<PgBoss> {
   await boss.createQueue(QUEUE_TITLE_CONVERSATION);
   await boss.createQueue(QUEUE_NOTIFICATIONS_DELIVER);
   await boss.createQueue(QUEUE_PURGE_CONVERSATIONS);
+  await boss.createQueue(QUEUE_CLASSIFY_QUESTION);
+  await boss.createQueue(QUEUE_TOPICS_CATCHUP);
   return boss;
 }
 
@@ -113,4 +119,20 @@ export async function enqueueNotification(job: DeliverNotificationJob): Promise<
 export async function enqueuePurgeConversations(job: PurgeConversationsJob): Promise<void> {
   const boss = await getBoss();
   await boss.send(QUEUE_PURGE_CONVERSATIONS, job, { singletonKey: `purge:${job.projectId}` });
+}
+
+/** Label one visitor question with a project topic (spec: question-topics). */
+export async function enqueueClassifyQuestion(job: ClassifyQuestionJob): Promise<void> {
+  const boss = await getBoss();
+  await boss.send(QUEUE_CLASSIFY_QUESTION, job);
+}
+
+/**
+ * Label a project's unlabelled questions now rather than at the next hourly
+ * tick (spec: question-topics), after the settings page cleared them. The
+ * singleton key collapses repeated saves while a run is still queued.
+ */
+export async function enqueueTopicsCatchup(job: TopicsCatchupJob): Promise<void> {
+  const boss = await getBoss();
+  await boss.send(QUEUE_TOPICS_CATCHUP, job, { singletonKey: `topics:${job.projectId ?? "all"}` });
 }

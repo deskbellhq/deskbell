@@ -1,7 +1,7 @@
 import { conversations, messages } from "@deskbell/db";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 
-import type { ConversationsFilter, DayRange } from "@/lib/conversations-view";
+import type { ContextFilter, ConversationsFilter, DayRange } from "@/lib/conversations-view";
 import { getDb } from "@/lib/db";
 import { readGapsConfig } from "@/lib/gaps-signal";
 
@@ -32,7 +32,20 @@ export interface ListOptions {
   filter?: ConversationsFilter;
   /** Inclusive UTC days a thread must have a message in; null for all time. */
   range?: DayRange | null;
+  /** A topic one of the thread's questions was labelled with (spec: question-topics). */
+  topic?: string | null;
+  /** A context key and id the thread must carry (spec: usage-page). */
+  context?: ContextFilter | null;
+  /** The verified visitor who owns the thread (spec: usage-page). */
+  user?: string | null;
   limit?: number;
+}
+
+/** The thread-level narrowing the usage page drills down with. */
+export interface Narrowing {
+  topic: string | null;
+  context: ContextFilter | null;
+  user: string | null;
 }
 
 /**
@@ -55,6 +68,8 @@ function threadAggregates(weakScore: number) {
     inRange: (range: DayRange) =>
       sql<boolean>`bool_or(${messageDay} between ${range.from} and ${range.to})`,
     lastMessageAt: sql<Date | null>`max(${messages.createdAt})`,
+    hasTopic: (topic: string) =>
+      sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.topic} = ${topic})`,
   };
 }
 
@@ -62,12 +77,30 @@ function having(
   agg: ReturnType<typeof threadAggregates>,
   filter: ConversationsFilter,
   range: DayRange | null,
+  topic: string | null = null,
 ) {
   const predicates = [
     filter === "uncertain" ? agg.uncertain : filter === "down" ? agg.down : null,
     range ? agg.inRange(range) : null,
+    topic ? agg.hasTopic(topic) : null,
   ].filter((p) => p !== null);
   return predicates.length > 0 ? sql.join(predicates, sql` and `) : undefined;
+}
+
+/** Project scope, plus the context containment test and the owner when a filter asks for one. */
+function scope(
+  project: { orgId: string; id: string },
+  context: ContextFilter | null,
+  user: string | null,
+) {
+  return and(
+    eq(conversations.orgId, project.orgId),
+    eq(conversations.projectId, project.id),
+    context
+      ? sql`${conversations.context} @> ${JSON.stringify({ [context.key]: { id: context.id } })}::jsonb`
+      : undefined,
+    user ? eq(conversations.endUserId, user) : undefined,
+  );
 }
 
 /**
@@ -77,7 +110,14 @@ function having(
  */
 export async function listConversations(
   project: { orgId: string; id: string },
-  { filter = "all", range = null, limit = DEFAULT_LIMIT }: ListOptions = {},
+  {
+    filter = "all",
+    range = null,
+    topic = null,
+    context = null,
+    user = null,
+    limit = DEFAULT_LIMIT,
+  }: ListOptions = {},
 ): Promise<ConversationListRow[]> {
   const db = getDb();
   // The same weak floor the gaps page flags on (lib/thread-status.ts).
@@ -101,9 +141,9 @@ export async function listConversations(
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(and(eq(conversations.orgId, project.orgId), eq(conversations.projectId, project.id)))
+    .where(scope(project, context, user))
     .groupBy(conversations.id)
-    .having(having(agg, filter, range))
+    .having(having(agg, filter, range, topic))
     // "Newest" is the latest activity: a thread with a fresh follow-up rises.
     .orderBy(desc(sql`coalesce(${agg.lastMessageAt}, ${conversations.createdAt})`))
     .limit(limit);
@@ -123,6 +163,7 @@ export async function listConversations(
 export async function countConversations(
   project: { orgId: string; id: string },
   range: DayRange | null,
+  narrowing: Narrowing = { topic: null, context: null, user: null },
 ): Promise<ConversationCounts> {
   const db = getDb();
   const agg = threadAggregates(readGapsConfig().weakScore);
@@ -134,9 +175,9 @@ export async function countConversations(
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(and(eq(conversations.orgId, project.orgId), eq(conversations.projectId, project.id)))
+    .where(scope(project, narrowing.context, narrowing.user))
     .groupBy(conversations.id)
-    .having(having(agg, "all", range))
+    .having(having(agg, "all", range, narrowing.topic))
     .as("threads");
   const [row] = await db
     .select({

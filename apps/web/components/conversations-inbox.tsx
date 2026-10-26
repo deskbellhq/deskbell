@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@deskbell/ui/components/select";
 import { cn } from "@deskbell/ui/lib/utils";
+import { X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useId, useState } from "react";
@@ -76,14 +77,30 @@ export function InboxList({
   rows,
   counts,
   view,
+  labels = { topic: null, context: null, user: null },
 }: {
   rows: InboxItem[];
   /** What each filter segment of this period would list. */
   counts: ConversationCounts;
   view: ConversationsView;
+  /** What the view's topic, context and visitor narrowing are called, when set. */
+  labels?: { topic: string | null; context: string | null; user: string | null };
 }) {
   const pathname = usePathname();
   const threadOpen = pathname !== "/conversations";
+  const chips = [
+    view.topic
+      ? { name: "Topic", value: labels.topic ?? view.topic, clear: { topic: null } }
+      : null,
+    view.context
+      ? {
+          name: view.context.key,
+          value: labels.context ?? view.context.id,
+          clear: { context: null },
+        }
+      : null,
+    view.user ? { name: "Visitor", value: labels.user ?? view.user, clear: { user: null } } : null,
+  ].filter((c) => c !== null);
 
   return (
     <>
@@ -115,6 +132,26 @@ export function InboxList({
             </Button>
           ))}
         </nav>
+        {chips.length > 0 ? (
+          <ul aria-label="Narrowed to" className="flex flex-wrap gap-1.5">
+            {chips.map((chip) => (
+              <li
+                key={chip.name}
+                className="flex min-w-0 items-center gap-1 rounded-full border bg-muted/40 py-0.5 pr-1 pl-2.5 text-xs"
+              >
+                <span className="text-muted-foreground">{chip.name}:</span>
+                <span className="truncate font-medium">{chip.value}</span>
+                <Link
+                  href={conversationsHref("/conversations", { ...view, ...chip.clear })}
+                  aria-label={`Remove ${chip.name} filter`}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-3" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {rows.length === 0 ? (

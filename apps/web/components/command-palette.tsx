@@ -11,6 +11,7 @@ import {
 import {
   Bell,
   BookOpen,
+  ChartColumn,
   CirclePlus,
   CircleSlash,
   CircleUser,
@@ -24,6 +25,7 @@ import {
   Palette,
   PenLine,
   Plug,
+  Tags,
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -94,6 +96,10 @@ export function CommandPalette({ role }: { role: string }) {
             <CircleSlash />
             Gaps
           </CommandItem>
+          <CommandItem onSelect={() => go("/usage")}>
+            <ChartColumn />
+            Usage
+          </CommandItem>
           <CommandItem onSelect={() => go("/actions")}>
             <Plug />
             Actions
@@ -124,6 +130,12 @@ export function CommandPalette({ role }: { role: string }) {
             <CommandItem onSelect={() => go("/settings/answer-style")}>
               <MessageSquareText />
               Answer style
+            </CommandItem>
+          )}
+          {isAdmin && (
+            <CommandItem onSelect={() => go("/settings/topics")}>
+              <Tags />
+              Topics
             </CommandItem>
           )}
           {isAdmin && (

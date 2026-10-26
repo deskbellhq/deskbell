@@ -1,4 +1,4 @@
 {
   "title": "Operate",
-  "pages": ["index", "conversations", "gaps", "notifications", "evaluation"]
+  "pages": ["index", "conversations", "gaps", "usage", "notifications", "evaluation"]
 }

@@ -10,6 +10,7 @@ import type {
   ProjectGaps,
   ProjectIdentity,
   ProjectNotifications,
+  ProjectTopics,
 } from "@deskbell/shared";
 import type { WidgetAppearance } from "@deskbell/shared/widget-config";
 import { sql } from "drizzle-orm";
@@ -152,6 +153,13 @@ export const projects = pgTable(
      * public config endpoint, it reaches the widget on the refusal event.
      */
     answering: jsonb("answering").$type<ProjectAnswering>().notNull().default({}),
+    /**
+     * What visitors ask about, as the operator names it (spec:
+     * question-topics): the list the worker labels each question against,
+     * validated with ProjectTopicsSchema on write. Empty means no labelling
+     * and no model call.
+     */
+    topics: jsonb("topics").$type<ProjectTopics>().notNull().default([]),
     /**
      * First-run checklist dismissed (spec: single-tag-embed-deploy-onboarding).
      * The steps themselves are derived from live rows, never stored.
@@ -442,6 +450,10 @@ export const conversations = pgTable(
     index("conversations_project_created_idx").on(t.projectId, t.createdAt),
     // A signed-in visitor's thread list, newest first.
     index("conversations_project_end_user_idx").on(t.projectId, t.endUserId, t.updatedAt),
+    // Usage filters ask for conversations whose context carries one key with
+    // one id, as a containment test (spec: usage-page); jsonb_path_ops is the
+    // index that answers containment.
+    index("conversations_context_idx").using("gin", t.context.op("jsonb_path_ops")),
   ],
 );
 
@@ -610,6 +622,12 @@ export const messages = pgTable(
     gapClusterId: text("gap_cluster_id").references(() => gapClusters.id, {
       onDelete: "set null",
     }),
+    /**
+     * The project topic this (user) message was labelled with (spec:
+     * question-topics): a key from the project's list, or `other`. Null
+     * until the worker runs, or forever when the project has no topics.
+     */
+    topic: text("topic"),
     ...timestamps,
   },
   (t) => [
@@ -623,6 +641,10 @@ export const messages = pgTable(
     index("messages_gap_idx")
       .on(t.conversationId, t.createdAt)
       .where(sql`role = 'assistant' and (refused or feedback = 'down')`),
+    // The questions the topic catch-up still has to label.
+    index("messages_topic_pending_idx")
+      .on(t.conversationId, t.createdAt)
+      .where(sql`role = 'user' and topic is null`),
   ],
 );
 
