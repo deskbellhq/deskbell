@@ -36,6 +36,8 @@ export interface ListOptions {
   topic?: string | null;
   /** A context key and id the thread must carry (spec: usage-page). */
   context?: ContextFilter | null;
+  /** The verified visitor who owns the thread (spec: usage-page). */
+  user?: string | null;
   limit?: number;
 }
 
@@ -43,6 +45,7 @@ export interface ListOptions {
 export interface Narrowing {
   topic: string | null;
   context: ContextFilter | null;
+  user: string | null;
 }
 
 /**
@@ -84,14 +87,19 @@ function having(
   return predicates.length > 0 ? sql.join(predicates, sql` and `) : undefined;
 }
 
-/** Project scope, plus the context containment test when a filter asks for one. */
-function scope(project: { orgId: string; id: string }, context: ContextFilter | null) {
+/** Project scope, plus the context containment test and the owner when a filter asks for one. */
+function scope(
+  project: { orgId: string; id: string },
+  context: ContextFilter | null,
+  user: string | null,
+) {
   return and(
     eq(conversations.orgId, project.orgId),
     eq(conversations.projectId, project.id),
     context
       ? sql`${conversations.context} @> ${JSON.stringify({ [context.key]: { id: context.id } })}::jsonb`
       : undefined,
+    user ? eq(conversations.endUserId, user) : undefined,
   );
 }
 
@@ -107,6 +115,7 @@ export async function listConversations(
     range = null,
     topic = null,
     context = null,
+    user = null,
     limit = DEFAULT_LIMIT,
   }: ListOptions = {},
 ): Promise<ConversationListRow[]> {
@@ -132,7 +141,7 @@ export async function listConversations(
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(scope(project, context))
+    .where(scope(project, context, user))
     .groupBy(conversations.id)
     .having(having(agg, filter, range, topic))
     // "Newest" is the latest activity: a thread with a fresh follow-up rises.
@@ -154,7 +163,7 @@ export async function listConversations(
 export async function countConversations(
   project: { orgId: string; id: string },
   range: DayRange | null,
-  narrowing: Narrowing = { topic: null, context: null },
+  narrowing: Narrowing = { topic: null, context: null, user: null },
 ): Promise<ConversationCounts> {
   const db = getDb();
   const agg = threadAggregates(readGapsConfig().weakScore);
@@ -166,7 +175,7 @@ export async function countConversations(
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(scope(project, narrowing.context))
+    .where(scope(project, narrowing.context, narrowing.user))
     .groupBy(conversations.id)
     .having(having(agg, "all", range, narrowing.topic))
     .as("threads");

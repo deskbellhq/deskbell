@@ -41,6 +41,7 @@ describe("parseView", () => {
       to: null,
       topic: null,
       context: null,
+      user: null,
     });
     expect(parseView({ period: "today", filter: "down" }).period).toBe("today");
   });
@@ -52,12 +53,14 @@ describe("parseView", () => {
       to: "2026-09-23",
       topic: null,
       context: null,
+      user: null,
     });
     expect(parseView({ from: "2026-09-23", to: "2026-09-01" })).toMatchObject({
       from: "2026-09-01",
       to: "2026-09-23",
       topic: null,
       context: null,
+      user: null,
     });
   });
   it("falls back to all time when a range is half or broken", () => {
@@ -71,6 +74,7 @@ describe("parseView", () => {
       to: null,
       topic: null,
       context: null,
+      user: null,
     });
   });
   it("lets period win over a stray range", () => {
@@ -151,6 +155,7 @@ describe("topic and context filters", () => {
     expect(parseView({ topic: "Not A Key", "ctx.1bad": "x" })).toMatchObject({
       topic: null,
       context: null,
+      user: null,
     });
   });
 
@@ -160,5 +165,17 @@ describe("topic and context filters", () => {
     expect(href).toBe("/conversations?period=7d&topic=billing&ctx.account=acc+1");
     const url = new URL(href, "http://x");
     expect(parseView(Object.fromEntries(url.searchParams))).toEqual(view);
+  });
+});
+
+describe("visitor filter", () => {
+  it("reads an end-user id, drops anything else, and round-trips", () => {
+    expect(parseView({ user: "eu_abc-1" }).user).toBe("eu_abc-1");
+    expect(parseView({ user: "not an id" }).user).toBeNull();
+    expect(parseView({ user: "x".repeat(65) }).user).toBeNull();
+    const view = parseView({ period: "7d", user: "eu_abc", "ctx.site": "s1" });
+    const href = conversationsHref("/conversations", view);
+    expect(href).toBe("/conversations?period=7d&ctx.site=s1&user=eu_abc");
+    expect(parseView(Object.fromEntries(new URL(href, "http://x").searchParams))).toEqual(view);
   });
 });

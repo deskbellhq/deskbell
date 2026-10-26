@@ -5,7 +5,7 @@ updated: 2026-10-23
 ---
 
 The Usage page in the dashboard is the count of how much the widget is used,
-by whom in the aggregate, and about what. Four cards, a chart and two tables,
+by whom in the aggregate, and about what. Four cards, a chart and up to three tables,
 all computed from the stored conversations on every read, so the page is
 always current.
 
@@ -34,6 +34,10 @@ conversation carries it. A key like `user_type` with values `staff` and
 `customer` is how a host separates its own people from its customers without
 the dashboard knowing who anyone is.
 
+Every column head on the page explains its rule when you hover or focus
+it, and each table opens with one sentence that says who leads and what
+moved most, so the numbers need no legend.
+
 ## Topics
 
 Under **Settings › Topics** an admin names what visitors ask about: one topic
@@ -43,9 +47,10 @@ visitor's path, within the project's daily token budget — and a question that
 fits none of them counts under *Other*. The description is what the model is
 told, so write it as a rule: "Exports: feeds, files, formats, schedules".
 
-The Topics table on the Usage page counts questions and conversations per
-topic, with the change against the previous period and a column per series
-when the page is split. A topic links to the Conversations page filtered to
+The Topics table on the Usage page counts questions per topic, drawn as a
+bar beside the number, with each topic's share of all questions in the
+period, the change against the previous period, conversations, and a column
+per series when the page is split. A topic links to the Conversations page filtered to
 it. Questions the worker has not labelled yet sit in one row at the bottom;
 an hourly job catches up on them.
 
@@ -53,11 +58,21 @@ Renaming a topic changes its key, so the settings page offers **Re-label**: it
 clears every label in the project and labels every question again against
 the current list, oldest first, a few hundred per hour.
 
-## What the page never shows
+## Visitors
 
-The page counts people; it does not name them. Visitors are counted as
-opaque ids, and the queries behind the page read none of a visitor's profile.
-The breakdown table shows the ids and names your page attached to the
-conversation — your accounts, your sites — never the visitor's own. The
-Conversations page, which does show a verified visitor's name and email to
-members, is where a count leads when you click through.
+When the project [verifies who its visitors are](/widget/identity), the page
+lists every signed-in visitor who asked in the period, most questions first
+— by name, else email, else the token's subject, the same label the thread
+view shows — with their questions, conversations, days active and last
+question. A visitor is a
+link to their threads on the Conversations page, narrowed with a chip you can
+remove. The first ten show; one button opens the rest. A visitor who asked on
+three or more different days of the period is marked a **power user** and the
+heading counts them: the rule counts days, not questions, so a habit shows
+and one long afternoon does not.
+
+Anonymous visitors have no profile. A browser session is counted in every
+number and never listed; the table's heading says how many sessions were
+counted beside the names. The breakdown table shows the ids and names your
+page attached to the conversation — your accounts, your sites — never a
+visitor's own.

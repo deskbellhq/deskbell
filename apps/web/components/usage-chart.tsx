@@ -104,6 +104,7 @@ export function UsageChart({
         from: date,
         to: unit === "week" ? shiftUtcDay(date, 6) : date,
         topic: null,
+        user: null,
         context: filter,
       }),
     );

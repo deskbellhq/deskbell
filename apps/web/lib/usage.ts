@@ -150,6 +150,13 @@ export function deltaLabel(now: number, before: number): string {
 }
 
 /** A share as a whole percent, or null when there is nothing to divide by. */
+/**
+ * A power user asked on this many different days of the period or more.
+ * Volume is not habit: the rule counts days, not questions, so one long
+ * afternoon never qualifies and nine short mornings do.
+ */
+export const POWER_USER_DAYS = 3;
+
 export function percent(part: number, whole: number): number | null {
   return whole > 0 ? Math.round((part / whole) * 100) : null;
 }

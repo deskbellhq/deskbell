@@ -89,19 +89,62 @@ test.describe("Usage", () => {
     await expect(page.getByRole("link", { name: "Can I export to CSV?" })).toHaveCount(0);
   });
 
-  test("names no visitor", async ({ page }) => {
-    for (const url of [
-      "/usage?period=all&split=user_type&by=account",
-      "/usage?period=all&by=site",
-    ]) {
-      await page.goto(url);
-      await expect(page.getByRole("heading", { name: "Usage", level: 1 }).last()).toBeVisible();
-      const text = await page.locator("body").innerText();
-      for (const v of Object.values(WIDGET.visitors)) {
-        expect(text).not.toContain(v.email);
-        expect(text).not.toContain(v.name);
-      }
+  test("lists signed-in visitors by name and no one else", async ({ page }) => {
+    // The identity seed's two visitors asked within the week; the usage threads are anonymous.
+    await page.goto("/usage?period=7d");
+    const section = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { level: 2, name: /^Visitors/ }) });
+    await expect(section.getByRole("heading", { level: 2 })).toContainText("2 signed in");
+    await expect(section).toContainText("anonymous sessions counted, not listed");
+    // Two days each: nobody in the seed wears the badge yet.
+    await expect(section.getByRole("button", { name: "Power user" })).toHaveCount(0);
+    // A column head explains itself on focus.
+    await section.getByRole("button", { name: "Questions", exact: true }).focus();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "Messages this visitor sent in the period",
+    );
+    // The reading line states the rule in words.
+    await expect(section).toContainText(`${WIDGET.visitors.one.name} asks most`);
+    await expect(section).toContainText("0 of 2 signed-in visitors are power users");
+    const one = section.getByRole("row").filter({ hasText: WIDGET.visitors.one.name });
+    await expect(one.getByRole("cell").nth(1)).toHaveText("2");
+    await expect(one.getByRole("cell").nth(2)).toHaveText("2");
+    await expect(one).toContainText(WIDGET.visitors.one.email);
+    await expect(
+      section
+        .getByRole("row")
+        .filter({ hasText: WIDGET.visitors.two.name })
+        .getByRole("cell")
+        .nth(1),
+    ).toHaveText("1");
+    // No anonymous session id reaches the page.
+    const text = await page.locator("body").innerText();
+    for (const t of USAGE.threads) expect(text).not.toContain(t.session);
+
+    // Behind a filter no signed-in visitor matches, nobody is named.
+    await page.goto(CUSTOMER);
+    await expect(page.getByRole("heading", { level: 2, name: /^Visitors/ })).toHaveCount(0);
+    const customers = await page.locator("body").innerText();
+    for (const v of Object.values(WIDGET.visitors)) {
+      expect(customers).not.toContain(v.email);
+      expect(customers).not.toContain(v.name);
     }
+
+    // A visitor is a door to their threads, shown as a chip with a way back.
+    await page.goto("/usage?period=7d");
+    await one.getByRole("link", { name: WIDGET.visitors.one.name }).click();
+    await page.waitForURL(/\/conversations\?period=7d&user=eu_e2e_v1/);
+    const narrowed = page.getByRole("list", { name: "Narrowed to" });
+    await expect(narrowed).toContainText("Visitor:");
+    await expect(narrowed).toContainText(WIDGET.visitors.one.name);
+    await expect(page.getByRole("link", { name: WIDGET.threads.v1Site.title })).toBeVisible();
+    await expect(page.getByRole("link", { name: WIDGET.threads.v1Free.title })).toBeVisible();
+    await expect(page.getByRole("link", { name: WIDGET.threads.v2.title })).toHaveCount(0);
+    await expect(narrowed.getByRole("link", { name: "Remove Visitor filter" })).toHaveAttribute(
+      "href",
+      "/conversations?period=7d",
+    );
   });
 
   test("the navigation lists it", async ({ page }, testInfo) => {

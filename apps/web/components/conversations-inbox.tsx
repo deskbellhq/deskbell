@@ -77,14 +77,14 @@ export function InboxList({
   rows,
   counts,
   view,
-  labels = { topic: null, context: null },
+  labels = { topic: null, context: null, user: null },
 }: {
   rows: InboxItem[];
   /** What each filter segment of this period would list. */
   counts: ConversationCounts;
   view: ConversationsView;
-  /** What the view's topic and context narrowing are called, when set. */
-  labels?: { topic: string | null; context: string | null };
+  /** What the view's topic, context and visitor narrowing are called, when set. */
+  labels?: { topic: string | null; context: string | null; user: string | null };
 }) {
   const pathname = usePathname();
   const threadOpen = pathname !== "/conversations";
@@ -99,6 +99,7 @@ export function InboxList({
           clear: { context: null },
         }
       : null,
+    view.user ? { name: "Visitor", value: labels.user ?? view.user, clear: { user: null } } : null,
   ].filter((c) => c !== null);
 
   return (

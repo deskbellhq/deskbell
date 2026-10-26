@@ -25,6 +25,7 @@ export default async function ConversationsIndexPage({
     range: resolveRange(view, todayUtc()),
     topic: view.topic,
     context: view.context,
+    user: view.user,
     limit: 1,
   });
 

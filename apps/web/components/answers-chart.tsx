@@ -123,6 +123,7 @@ export function AnswersChart({ data }: { data: ChartPoint[] }) {
             to: date,
             topic: null,
             context: null,
+            user: null,
           }),
         );
     },
