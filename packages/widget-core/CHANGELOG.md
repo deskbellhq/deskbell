@@ -1,5 +1,21 @@
 # @deskbell/widget
 
+## 0.3.0
+
+### Minor Changes
+
+- 8379098: A refusal can now carry `text`: the project's own reply to a question about the visitor's data that nothing on the turn could read (reason `no_access`). The widget shows it as an answer, live and on replay, and still emits `deskbell:refusal` to the host.
+
+### Patch Changes
+
+- 6599aa6: Render GFM pipe tables in answers (new `md-table` part) instead of showing the raw pipes. Say "1 step" rather than "1 steps" in the activity summary (new `activityStep` copy key). New parts `sidebar-head`, `sidebar-title`, `citations-label` and `feedback-label`; `sources` copy accepts `{n}`; new `feedbackPrompt` copy key, empty by default.
+- Updated dependencies [6599aa6]
+- Updated dependencies [07324b6]
+- Updated dependencies [8379098]
+- Updated dependencies [59bd632]
+  - @deskbell/shared@0.3.0
+  - @deskbell/sdk@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
