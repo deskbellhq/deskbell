@@ -53,6 +53,32 @@ export function orderCandidates(candidates: ScoredChunk[], order: CandidateOrder
  * document one slot per chunk while a short canonical page gets exactly one
  * shot (spec: hybrid-retrieval, open questions).
  */
+/**
+ * Let the top-ranked document keep up to `max` of its chunks in the final
+ * selection, drawn from the ordered pool and appended after the selection;
+ * 1 = off. Runs after `capPerDocument`, which gives every page one slot so
+ * distinct pages fill the answer; this gives the one page the question is
+ * most about enough of itself to answer a question that spans it, such as a
+ * list the page carries in full. Extras come after `limit`, never in place
+ * of another page, so the first `limit` hits — what recall@k measures — are
+ * exactly what they were without this.
+ */
+export function deepenTopDocument(
+  pool: ScoredChunk[],
+  selected: ScoredChunk[],
+  max: number,
+): ScoredChunk[] {
+  const top = selected[0];
+  if (max <= 1 || !top) return selected;
+  const chosen = new Set(selected.map((c) => c.chunkId));
+  const have = selected.filter((c) => c.documentId === top.documentId).length;
+  const extras = pool
+    .filter((c) => c.documentId === top.documentId && !chosen.has(c.chunkId))
+    .slice(0, Math.max(0, max - have));
+  if (extras.length === 0) return selected;
+  return [...selected, ...extras];
+}
+
 export function capPerDocument(candidates: ScoredChunk[], max: number): ScoredChunk[] {
   if (max <= 0) return candidates;
   const seen = new Map<string, number>();
