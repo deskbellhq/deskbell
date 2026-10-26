@@ -514,7 +514,7 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     expect(blocks?.[0]?.textContent).toBe("The visitor asks about an order. I will look it up.");
     expect(blocks?.[1]?.textContent).toBe("It shipped; answer plainly.");
     expect(group?.querySelector('[part="activity-summary"]')?.textContent).toMatch(
-      /^Worked for \d+s · 1 steps$/,
+      /^Worked for \d+s · 1 step$/,
     );
     expect(host.querySelector('[part="citations"]')).toBeNull();
   });
@@ -725,6 +725,43 @@ describe("actions (spec: mcp-actions, action-presentation)", () => {
     // A replayed message has no timing, so the fold counts its steps only, and starts closed.
     const group = host.querySelector('[part="activity"]') as HTMLDetailsElement;
     expect(group.open).toBe(false);
-    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 steps");
+    expect(group.querySelector('[part="activity-summary"]')?.textContent).toBe("1 step");
+  });
+});
+
+describe("labels a host can turn on (spec: answer-rendering-fixes)", () => {
+  it("counts the sources in the label and shows the feedback prompt", async () => {
+    fake.ask.mockReturnValue(
+      stream(
+        answer("Yes.", [
+          {
+            type: "citations",
+            citations: [
+              { documentId: "d1", url: "https://d.test/1", title: "One", snippet: "" },
+              { documentId: "d2", url: "https://d.test/2", title: "Two", snippet: "" },
+            ],
+          },
+        ]),
+      ),
+    );
+    const { host } = mount({
+      mode: "inline",
+      feedback: true,
+      copy: { sources: "Sources · {n}", feedbackPrompt: "Was this answer helpful?" },
+    } as Partial<WidgetConfig>);
+    await sendQuestion("does it?");
+    await screen.findByText("Yes.");
+    expect(host.querySelector('[part="citations-label"]')?.textContent).toBe("Sources · 2");
+    await waitFor(() => expect(host.querySelector('[part="feedback"]')).not.toBeNull());
+    expect(host.querySelector('[part="feedback-label"]')?.textContent).toBe(
+      "Was this answer helpful?",
+    );
+  });
+
+  it("names the thread rail in a title part", async () => {
+    fake.list.mockResolvedValue([]);
+    const { host } = mount({ mode: "inline", conversationHistory: true, historyLayout: "sidebar" });
+    await waitFor(() => expect(host.querySelector('[part="sidebar-title"]')).not.toBeNull());
+    expect(host.querySelector('[part="sidebar-head"]')).not.toBeNull();
   });
 });

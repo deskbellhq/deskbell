@@ -42,9 +42,26 @@ const BARE_LINE = /^((?:\d+[ \t]*,[ \t]*)*\d+)$/;
 /** Still on its way to being a bare numbers line — digits, commas and blanks only. */
 const BARE_PREFIX = /^[\d, \t]*$/;
 
-function isPrefixOfSources(text: string): boolean {
+/**
+ * The last line with the decoration models add around it removed: emphasis or
+ * code markers around the prefix, a lowercase "Sources", a trailing period.
+ * The numbers grammar itself stays strict.
+ */
+export function normalizeSourcesLine(line: string): string {
+  return line
+    .trim()
+    .replace(/^[*_`]+/, "")
+    .replace(/^sources[*_`]*[ \t]*:[*_`]*/i, SOURCES_PREFIX)
+    .replace(/[ \t]*[.*_`]+$/, "");
+}
+
+function isPrefixOfSources(raw: string): boolean {
+  const text = raw.replace(/^[*_`]+/, "");
+  const upper = text.toUpperCase();
   return (
-    SOURCES_PREFIX.startsWith(text) || text.startsWith(SOURCES_PREFIX) || BARE_PREFIX.test(text)
+    SOURCES_PREFIX.startsWith(upper) ||
+    normalizeSourcesLine(text).startsWith(SOURCES_PREFIX) ||
+    BARE_PREFIX.test(text)
   );
 }
 
@@ -100,7 +117,7 @@ export interface ParsedSourcesTail {
  * the tail as prose when they are not.
  */
 export function parseSourcesTail(hold: string): ParsedSourcesTail {
-  const trimmed = hold.trim();
+  const trimmed = normalizeSourcesLine(hold);
   const prefixed = SOURCES_LINE.exec(trimmed);
   const bare = prefixed ? null : BARE_LINE.exec(trimmed);
   const match = prefixed ?? bare;

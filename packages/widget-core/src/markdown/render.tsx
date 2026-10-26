@@ -67,6 +67,33 @@ function renderBlock(
       return <blockquote key={key}>{block.c.map((b, j) => renderBlock(b, j, onLink))}</blockquote>;
     case "hr":
       return <hr key={key} />;
+    case "table":
+      return (
+        <div key={key} part="md-table" class="md-table">
+          <table>
+            <thead>
+              <tr>
+                {block.head.map((cell, j) => (
+                  <th key={j} style={block.align[j] ? { textAlign: block.align[j] } : undefined}>
+                    {renderInline(cell, onLink)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, j) => (
+                    <td key={j} style={block.align[j] ? { textAlign: block.align[j] } : undefined}>
+                      {renderInline(cell, onLink)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
   }
 }
 

@@ -127,3 +127,28 @@ describe("safeHref", () => {
     expect(safeHref("vbscript:x")).toBeNull();
   });
 });
+
+describe("tables", () => {
+  it("parses a pipe table with alignment, padding short rows", () => {
+    expect(parseMarkdown("| Plan | Limit |\n|---|---:|\n| Starter | 100 |\n| Team |")).toEqual([
+      {
+        t: "table",
+        align: [null, "right"],
+        head: [[text("Plan")], [text("Limit")]],
+        rows: [
+          [[text("Starter")], [text("100")]],
+          [[text("Team")], []],
+        ],
+      },
+    ]);
+  });
+
+  it("ends the table at a blank line and keeps the paragraph before it apart", () => {
+    const blocks = parseMarkdown("Results:\n| a | b |\n|---|---|\n| 1 | 2 |\n\nDone.");
+    expect(blocks.map((b) => b.t)).toEqual(["p", "table", "p"]);
+  });
+
+  it("leaves a line with a pipe but no separator as prose", () => {
+    expect(parseMarkdown("a | b")).toEqual([{ t: "p", c: [text("a | b")] }]);
+  });
+});

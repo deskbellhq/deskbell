@@ -190,6 +190,8 @@ export const CSS = `
 }
 .sidebar.collapsed { width: 52px; }
 .sidebar-head { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+/* Off by default: the aria-label already names the rail. A host shows it with ::part(sidebar-title). */
+.sidebar-title { display: none; font-weight: 600; }
 .sidebar-btn {
   display: flex; align-items: center; gap: 8px; border: none; background: transparent;
   color: var(--_text-secondary); cursor: pointer; padding: 8px; border-radius: var(--_input-radius);
@@ -306,6 +308,10 @@ export const CSS = `
 .md h4 { font-size: 14px; font-weight: 600; }
 .md ul, .md ol { padding-left: 20px; }
 .md li { margin: 2px 0; }
+.md-table { overflow-x: auto; margin: 0 0 8px; }
+.md table { border-collapse: collapse; font-size: 13px; }
+.md th, .md td { border: 1px solid var(--_border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.md th { font-weight: 600; }
 .md li > ul, .md li > ol { margin: 2px 0 0; }
 .md code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
@@ -404,7 +410,8 @@ a.pill:hover { background: var(--_surface-active); color: var(--_accent); }
 .action-buttons .ghost:hover { background: var(--_surface-subtle); }
 .action-buttons .primary { background: var(--_accent); color: var(--_accent-contrast); }
 .action-buttons button:disabled { opacity: .4; cursor: default; }
-.feedback { display: flex; gap: 2px; }
+.feedback { display: flex; gap: 2px; align-items: center; }
+.feedback-label { margin-right: auto; color: var(--_text-muted); font-size: 13px; }
 .fb {
   border: none; background: transparent; color: var(--_text-subtle); cursor: pointer;
   width: 26px; height: 26px; border-radius: var(--_control-radius);
