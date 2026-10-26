@@ -45,7 +45,7 @@ close it mid-answer.
 |---|---|---|
 | `token` | `value` | Once per streamed piece of the answer |
 | `citations` | `citations[]`: `documentId`, `title`, `snippet`, `url?`, `kind?` | After the answer, only the sources the model used |
-| `refusal` | `reason`: `no_context`, `no_grounding`, `off_topic`, `guardrail` | Instead of citations, when there is no grounded answer. It can arrive after `token` events when the model gave up mid-answer; discard the text received before it, as the widget does |
+| `refusal` | `reason`: `no_context`, `no_grounding`, `off_topic`, `guardrail`, `no_access`; `text?` | Instead of citations, when there is no grounded answer. It can arrive after `token` events when the model gave up mid-answer; discard the text received before it, as the widget does. `no_access` carries `text`, the project's own reply to a question about the visitor's data; show it as the answer. See [Questions about the visitor's own data](/knowledge/own-data-questions) |
 | `clarify` | `question`, `options[]` (page titles) | Instead of an answer, when the pages answer the question in more than one way and `DESKBELL_CLARIFY=on`; send an option back as the next message. See [Clarifying questions](/knowledge/clarifying-questions) |
 | `verification` | `unsupportedTerms[]` | After `citations`, only when the answer named things the documentation does not contain (never with `DESKBELL_VERIFY=off`); the widget speaks them as a sentence under the answer. See [Answer verification](/knowledge/answer-verification) |
 | `action` | `id`, `title`, `status`: `running`, `succeeded`, `failed` | A tool call on the visitor's behalf started or ended ([Actions](/actions)) |

@@ -72,6 +72,20 @@ export const ProjectGapsSchema = z.object({ ignoredTerms: IgnoredTermsSchema.opt
 export type ProjectGaps = z.infer<typeof ProjectGapsSchema>;
 
 /**
+ * Per-project answering settings (spec: own-data-fallback). `ownDataReply` is
+ * what the visitor reads when they ask about their own account and nothing on
+ * the turn can look: the engine recognises the question, the host shows this
+ * text verbatim. Absent means the rule is off and such a question is answered
+ * or refused like any other. Trimmed on write, and a blank field clears it, so
+ * an empty string is never stored as a reply.
+ */
+export const OWN_DATA_REPLY_MAX_LENGTH = 1000;
+export const ProjectAnsweringSchema = z.object({
+  ownDataReply: z.string().trim().min(1).max(OWN_DATA_REPLY_MAX_LENGTH).optional(),
+});
+export type ProjectAnswering = z.infer<typeof ProjectAnsweringSchema>;
+
+/**
  * Conversation retention (spec: conversation-retention): how many days a
  * conversation with no new message is kept before the worker removes it.
  * 0 keeps everything, like a daily token budget of 0 means unlimited. Coerced
@@ -321,7 +335,13 @@ export type Citation = z.infer<typeof CitationSchema>;
  * `refusal` is a first-class outcome: a grounded "I don't know" with an
  * optional handoff hint beats a hallucinated answer (D8).
  */
-export type RefusalReason = "no_context" | "no_grounding" | "off_topic" | "guardrail";
+export type RefusalReason =
+  | "no_context"
+  | "no_grounding"
+  | "off_topic"
+  | "guardrail"
+  /** The question needs the visitor's own data, which nothing on the turn could read (spec: own-data-fallback). */
+  | "no_access";
 
 export type AnswerEvent =
   | { type: "token"; value: string }
@@ -330,9 +350,11 @@ export type AnswerEvent =
    * `no_context`: retrieval returned nothing to answer from. `no_grounding`:
    * it returned something and the model declined to answer from it. The
    * widget shows the same copy for both; the distinction is for the people
-   * maintaining the content, not the visitor.
+   * maintaining the content, not the visitor. `text`, when present, is what
+   * the visitor is shown instead of that copy: the project's own reply to a
+   * `no_access` refusal (spec: own-data-fallback).
    */
-  | { type: "refusal"; reason: RefusalReason }
+  | { type: "refusal"; reason: RefusalReason; text?: string }
   /**
    * The context answered the question in more than one way, so the engine
    * asks which the visitor meant (spec: clarifying-questions). `options` are

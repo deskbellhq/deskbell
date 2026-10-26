@@ -9,6 +9,8 @@ import {
   createEngine,
   type EngineDeps,
   type EngineOptions,
+  OWN_DATA_PROMPT,
+  OWN_DATA_SENTINEL,
   parseClarify,
   REFUSAL_SENTINEL,
   SYSTEM_PROMPT,
@@ -329,6 +331,116 @@ describe("buildSystemPrompt", () => {
     expect(buildSystemPrompt({ clarify: true, verify: true, answerStyle: "Be brief." })).toBe(
       `${SYSTEM_PROMPT}\n\n${CLARIFY_PROMPT}\n\n${VERIFY_PROMPT}\n\nBe brief.`,
     );
+  });
+
+  it("is byte-identical with the own-data rule off, and composes it last", () => {
+    expect(buildSystemPrompt({ ownData: false })).toBe(SYSTEM_PROMPT);
+    expect(buildSystemPrompt({ ownData: true })).toBe(`${SYSTEM_PROMPT}\n\n${OWN_DATA_PROMPT}`);
+    expect(buildSystemPrompt({ verify: true, ownData: true })).toBe(
+      `${SYSTEM_PROMPT}\n\n${VERIFY_PROMPT}\n\n${OWN_DATA_PROMPT}`,
+    );
+    expect(OWN_DATA_PROMPT).toContain(OWN_DATA_SENTINEL);
+    // The project's style paragraph stays last (spec: answer-style).
+    expect(buildSystemPrompt({ ownData: true, answerStyle: "Be brief." })).toBe(
+      `${SYSTEM_PROMPT}\n\n${OWN_DATA_PROMPT}\n\nBe brief.`,
+    );
+  });
+});
+
+describe("createEngine — own-data fallback (spec: own-data-fallback)", () => {
+  const on: EngineOptions = { ownDataFallback: true };
+  const refusal = (events: AnswerEvent[]) => events.find((e) => e.type === "refusal");
+
+  it("is off by default: the word is ordinary text and the prompt is unchanged", async () => {
+    const systems: string[] = [];
+    const seen = deps([chunk("c1")], [OWN_DATA_SENTINEL]);
+    const generate = seen.generate;
+    seen.generate = async function* (args) {
+      systems.push(args.system);
+      yield* generate(args);
+    };
+    const events: AnswerEvent[] = [];
+    for await (const e of createEngine(seen).ask({ ...base, message: "my score?" })) events.push(e);
+    expect(text(events)).toBe(OWN_DATA_SENTINEL);
+    expect(refusal(events)).toBeUndefined();
+    expect(systems[0]).toBe(SYSTEM_PROMPT);
+  });
+
+  it("appends the paragraph when on, and refuses with its own reason", async () => {
+    const systems: string[] = [];
+    const seen = deps([chunk("c1")], ["NO_", "ACC", "ESS"]);
+    const generate = seen.generate;
+    seen.generate = async function* (args) {
+      systems.push(args.system);
+      yield* generate(args);
+    };
+    const events: AnswerEvent[] = [];
+    for await (const e of createEngine(seen, on).ask({ ...base, message: "my score?" }))
+      events.push(e);
+    expect(systems[0]).toBe(`${SYSTEM_PROMPT}\n\n${OWN_DATA_PROMPT}`);
+    expect(events.at(-1)).toEqual({ type: "refusal", reason: "no_access" });
+    expect(text(events)).toBe("");
+  });
+
+  it("still refuses with the grounding sentinel, and still answers prose", async () => {
+    const refused = await collect([chunk("c1")], ["NO_GROUNDING"], on);
+    expect(refused.at(-1)).toEqual({ type: "refusal", reason: "no_grounding" });
+    const answered = await collect([chunk("c1")], ["NO_ACCENT marks ", "are fine."], on);
+    expect(text(answered)).toBe("NO_ACCENT marks are fine.");
+    expect(refusal(answered)).toBeUndefined();
+  });
+
+  it("withdraws prose written before the word, and shows none of it", async () => {
+    const events = await collect(
+      [chunk("c1")],
+      ["I cannot see your account. ", "NO_", "ACCESS"],
+      on,
+    );
+    expect(events.at(-1)).toEqual({ type: "refusal", reason: "no_access" });
+    expect(text(events)).not.toContain("NO_");
+  });
+
+  it("holds a trailing prefix for one token and releases it as prose", async () => {
+    const events = await collect([chunk("c1")], ["The answer is NO_", "T here."], on);
+    expect(text(events)).toBe("The answer is NO_T here.");
+    expect(refusal(events)).toBeUndefined();
+    const inWord = await collect([chunk("c1")], ["See ANNO_ACCESS_X for details."], on);
+    expect(text(inWord)).toBe("See ANNO_ACCESS_X for details.");
+    expect(refusal(inWord)).toBeUndefined();
+  });
+
+  it("treats the word wrapped in whitespace as the refusal", async () => {
+    const events = await collect([chunk("c1")], [`  ${OWN_DATA_SENTINEL}\n`], on);
+    expect(events.at(-1)).toEqual({ type: "refusal", reason: "no_access" });
+  });
+
+  it("does not apply on a turn with tools: no paragraph, and the word is text", async () => {
+    const systems: string[] = [];
+    const seen = deps([chunk("c1")], [OWN_DATA_SENTINEL]);
+    const generate = seen.generate;
+    seen.generate = async function* (args) {
+      systems.push(args.system);
+      yield* generate(args);
+    };
+    const tool = {
+      name: "crm__lookup",
+      title: "Look up the account",
+      description: "Reads the visitor's account",
+      inputSchema: {},
+      policy: "allow" as const,
+      readOnly: true,
+      execute: async () => ({}),
+    };
+    const events: AnswerEvent[] = [];
+    for await (const e of createEngine(seen, on).ask({
+      ...base,
+      message: "my score?",
+      tools: [tool],
+    }))
+      events.push(e);
+    expect(systems[0]).not.toContain(OWN_DATA_PROMPT);
+    expect(text(events)).toBe(OWN_DATA_SENTINEL);
+    expect(refusal(events)).toBeUndefined();
   });
 });
 

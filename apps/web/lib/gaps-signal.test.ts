@@ -44,6 +44,14 @@ describe("classifyAnswer — unsupported terms (spec: answer-verification)", () 
     expect(asked.isGap).toBe(false);
   });
 
+  it("does not count a refusal for lack of access as a gap (spec: own-data-fallback)", () => {
+    // The visitor asked about their own data; no page can hold it. A
+    // refusal everywhere a refusal is shown, never a page to write.
+    const cls = classifyAnswer(signal({ refused: true, refusalReason: "no_access" }));
+    expect(cls.kinds).toEqual([]);
+    expect(cls.isGap).toBe(false);
+  });
+
   it("leads with marked down, then unsupported, then weak", () => {
     const cls = classifyAnswer(
       signal({ feedback: "down", unsupportedTerms: ["x"], retrievalTopScore: 0.1 }),

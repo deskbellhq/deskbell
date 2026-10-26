@@ -7,6 +7,7 @@
     "clarifying-questions",
     "answer-verification",
     "answer-style",
+    "own-data-questions",
     "hallucinations",
     "re-indexing",
     "faq"

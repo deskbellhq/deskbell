@@ -1,0 +1,96 @@
+---
+title: Questions about the visitor's own data
+description: Visitors ask why their score is low or which settings are on their account; the assistant answers from your pages and cannot see that. Write one reply for that case, and it is shown instead of a guess.
+updated: 2026-10-23
+---
+
+The assistant answers from your content. A visitor who asks "why is my
+readiness score 60%" or "which rules are on my title field" is asking about
+their own account, and nothing in your pages holds that. On a turn with no
+connected [action](/actions) that can look it up, a model holding good pages
+about the feature tends to write a diagnosis as if it had looked. Under
+**Settings › Visitor data** a project writes one reply for that case, and the
+visitor reads it instead.
+
+## Writing the reply
+
+```text title="Settings › Visitor data"
+I can't see your account or its settings from here, so I can't check
+things like your score or your configuration directly. If you share the
+setting, the value and what you see, I can help you work through it.
+```
+
+Say what the assistant cannot see and what the visitor can share instead;
+the second half is what turns the exchange into a useful one on the next
+turn. The reply is shown word for word in the assistant's voice, Markdown
+included, and it is never paraphrased: the model only names the case, and
+the server supplies your text. Leave the field empty and the rule is off.
+
+Admins and owners write it; everyone can read it. It is stored with the
+project and is never part of the widget's public configuration.
+
+## What the rule does
+
+With a reply written, the instruction the model reads gains one paragraph on
+turns without tools. A question about what is true in the visitor's own
+account, which the retrieved pages cannot answer without that data, is
+answered with a sentinel word instead of prose. The server recognises the
+word the way it recognises an ordinary refusal: held at the start of the
+stream until it cannot be the word, withdrawn when it arrives after a
+sentence, left alone inside another word. The visitor then reads your reply.
+
+Three cases are carved out in the same paragraph:
+
+- **How-to questions.** "How do I set a daily budget on my project" is a
+  documentation question even though it says "my". It is answered from your
+  pages as usual.
+- **Change requests.** "Move my launcher to the left for me" is answered with
+  the documented steps for doing it themselves, and the model is told never
+  to say that a change was made, applied or checked.
+- **Details already shared.** Once the visitor has given the setting, the
+  value or the error, the next turn works with what they shared instead of
+  repeating the reply. The reply is loaded as history, so the model knows it
+  already said so.
+
+Without a reply, nothing changes: the instruction is byte-identical to the one
+before this existed, and such a question is answered or refused like any
+other.
+
+## When actions are connected
+
+A turn that has [tools](/actions) never applies the rule. The tools contract
+already says that a question about the visitor's own order, account or data
+is answered by calling the matching tool first, so the paragraph is not sent
+and the word is not a sentinel. Connecting an action that reads the data
+removes the reply for the turns that have it, with nothing to switch off; a
+project that never connects one keeps it.
+
+## In the dashboard
+
+The message is a refusal with its own reason. On the
+[Conversations](/operate/conversations) page it is badged **No access to
+visitor data**, the thread reads **Uncertain**, and the overview counts it
+among refusals, because the question was not answered from your content. It
+is never a gap: it does not appear on the [Gaps](/operate/gaps) page, is not
+clustered and is not exported, since no page you could write holds the
+visitor's data. How often it fires is the number that says whether an action
+for that data is worth connecting.
+
+To the widget's host page the message is a `deskbell:refusal` event with
+reason `no_access` ([JavaScript API](/widget/javascript-api)); over the
+[API](/developer/api) it is a `refusal` event carrying `text`, which a client
+shows as the answer.
+
+## Measuring it
+
+The built-in `own-data` eval set holds questions about the visitor's own
+account, which must be refused, beside how-to questions about the same
+features, which must be answered. It needs a real model and the rule on:
+
+```bash
+DESKBELL_OWN_DATA=on pnpm evals --dataset packages/evals/datasets/own-data.json --real-model --judge llm
+```
+
+A rule that fires on every "my" shows up as false refusals on the how-to
+cases; one that never fires shows up as answered unanswerable cases.
+[Evaluation](/operate/evaluation) covers the harness.

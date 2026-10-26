@@ -25,6 +25,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { clarifyFromEnv } from "../packages/core/src/clarify-config";
+import { ownDataFromEnv } from "../packages/core/src/own-data-config";
 import { verifyFromEnv } from "../packages/core/src/verify-config";
 import { buildFixture } from "../packages/evals/src/fixtures/index";
 import {
@@ -246,7 +247,9 @@ async function buildTarget(): Promise<BuiltTarget> {
   // Clarification only with a real model: the stub never asks, and the
   // fixture's prompt fingerprint must not move when nothing can change.
   const fixture = await buildFixture(
-    generate ? { generate, clarify: clarifyFromEnv(), verify: verifyFromEnv() } : {},
+    generate
+      ? { generate, clarify: clarifyFromEnv(), verify: verifyFromEnv(), ownData: ownDataFromEnv() }
+      : {},
   );
   return {
     k: fixture.k,
