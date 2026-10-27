@@ -28,7 +28,7 @@ import { Hint, HintBadge, ShowAll } from "@/components/usage-hint";
 import { Bar, LabelTable, seriesColor } from "@/components/usage-label-table";
 import { UsageToolbar } from "@/components/usage-toolbar";
 import { requireMember } from "@/lib/auth/session";
-import { type ConversationsView, conversationsHref } from "@/lib/conversations-view";
+import { type ConversationsView, conversationsHref, DEFAULT_VIEW } from "@/lib/conversations-view";
 import { getDb } from "@/lib/db";
 import { resolvePeriod } from "@/lib/gaps";
 import { relativeTime } from "@/lib/inbox";
@@ -111,15 +111,9 @@ export default async function UsagePage({
   // the period and the first context filter.
   const door = (narrowing: Partial<ConversationsView>) =>
     conversationsHref("/conversations", {
-      filter: "all",
+      ...DEFAULT_VIEW,
       period: view.period,
-      from: null,
-      to: null,
-      topic: null,
-      intent: null,
-      signal: null,
       context: view.filters[0] ?? null,
-      user: null,
       ...narrowing,
     });
 
@@ -177,6 +171,45 @@ export default async function UsagePage({
       ? "No question carried a signal."
       : null;
   const labelled = intentRows.some((r) => r.key !== null);
+
+  // The three shares worth acting on, on the group's heading (spec: usage-page,
+  // intent-and-signals): what the product should do, who wanted a person, who
+  // pushed back — each against every question in the period, with the share
+  // in the period before so the badge can say which way it moved.
+  const previousQuestions = sum(previous, "questions");
+  const shareOf = (now: number, before: number | undefined) => ({
+    now: percent(now, questionTotal),
+    before: previous && previousQuestions !== null ? percent(before ?? 0, previousQuestions) : null,
+  });
+  const headline = [
+    {
+      key: "request",
+      label: "Requests",
+      hint: `Share of questions that asked for something the product should do. ${INTENT_INFO.request.description}`,
+      href: door({ intent: "request" }),
+      ...shareOf(requests, data.previousIntents?.find((r) => r.key === "request")?.questions),
+    },
+    {
+      key: "wants_human",
+      label: "Wants a human",
+      hint: `Share of questions that asked for a person. ${SIGNAL_INFO.wants_human.description}`,
+      href: door({ signal: "wants_human" }),
+      ...shareOf(
+        signalRows.find((r) => r.key === "wants_human")?.questions ?? 0,
+        data.previousSignals?.find((r) => r.key === "wants_human")?.questions,
+      ),
+    },
+    {
+      key: "pushback",
+      label: "Pushback",
+      hint: `Share of questions that pushed back on the answer before. ${SIGNAL_INFO.pushback.description}`,
+      href: door({ signal: "pushback" }),
+      ...shareOf(
+        signalRows.find((r) => r.key === "pushback")?.questions ?? 0,
+        data.previousSignals?.find((r) => r.key === "pushback")?.questions,
+      ),
+    },
+  ];
 
   const topicsComposition = !view.split ? composition(topicRows, topicTotal, OTHER_TOPIC) : null;
   const intentComposition = !view.split
@@ -287,6 +320,226 @@ export default async function UsagePage({
             </CardHeader>
           </Card>
         )}
+
+        <section className="flex flex-col gap-6 pt-2">
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">What visitors ask</h2>
+              <p className="text-sm text-muted-foreground">
+                What each question was about, why it was asked, and how it went — labelled by the
+                chat model as questions come in.
+              </p>
+            </div>
+            {questionTotal > 0 && (project.classifyQuestions || labelled) ? (
+              <ul aria-label="Worth acting on" className="flex flex-wrap gap-2">
+                {headline.map((h) => (
+                  <li key={h.key}>
+                    <Link
+                      href={h.href}
+                      title={h.hint}
+                      className="flex items-baseline gap-2 rounded-lg border px-3 py-2 hover:bg-muted/60"
+                    >
+                      <span className="text-sm text-muted-foreground">{h.label}</span>
+                      <span className="text-lg font-semibold tabular-nums">
+                        {h.now === null ? "—" : `${h.now}%`}
+                      </span>
+                      {previous && h.now !== null && h.before !== null ? (
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {deltaLabel(h.now, h.before).replace(/^([+-]\d+)$/, "$1 pts")}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          <section className="flex flex-col gap-2">
+            <div>
+              <h3 className="text-base font-semibold">Topics</h3>
+              <p className="text-sm text-muted-foreground">
+                What each question was about, in the topics you named.
+              </p>
+            </div>
+            {topicsReading ? (
+              <p className="text-sm text-muted-foreground">{topicsReading}</p>
+            ) : null}
+            {project.topics.length === 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Questions are not grouped yet</CardTitle>
+                  <CardDescription>
+                    {canConfigure ? (
+                      <>
+                        Name the topics visitors ask about under{" "}
+                        <Link href="/settings/topics" className="underline underline-offset-4">
+                          Settings › Topics
+                        </Link>
+                        , and each question is labelled with one as it comes in.
+                      </>
+                    ) : (
+                      <>
+                        An admin can name the topics under Settings › Topics; each question is then
+                        labelled with one as it comes in.
+                      </>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : (
+              <LabelTable
+                rows={topicRows}
+                total={topicTotal}
+                segments={segments}
+                split={Boolean(view.split)}
+                previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+                present={(key) => ({
+                  name: topicName(project.topics, key),
+                  description: project.topics.find((t) => t.key === key)?.description,
+                  href: door({ topic: key }),
+                })}
+                composition={topicsComposition}
+                hints={{
+                  column: "Topic",
+                  label:
+                    "The label the chat model gave each question, from the list under Settings › Topics. Hover a topic for its description.",
+                  questions: view.split
+                    ? "Visitor questions labelled with this topic in the period. The bar scales to the largest topic and stacks per series in the chart's colours."
+                    : "Visitor questions labelled with this topic in the period. The bar scales to the largest topic.",
+                  share:
+                    "This topic's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
+                  conversations: "Threads with at least one question on this topic in the period.",
+                  rest:
+                    namedTopics.length > 5
+                      ? "Other topics, Other and unlabelled"
+                      : "Other and unlabelled",
+                }}
+                emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
+              />
+            )}
+          </section>
+
+          {!project.classifyQuestions && !labelled ? (
+            <section className="flex flex-col gap-2">
+              <div>
+                <h3 className="text-base font-semibold">Intent and signals</h3>
+                <p className="text-sm text-muted-foreground">
+                  Why each question was asked, and how it went.
+                </p>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Questions are not labelled</CardTitle>
+                  <CardDescription>
+                    {canConfigure ? (
+                      <>
+                        Labelling is switched off under{" "}
+                        <Link href="/settings/topics" className="underline underline-offset-4">
+                          Settings › Topics
+                        </Link>
+                        . Switch it on and each question gets an intent and signals as it comes in.
+                      </>
+                    ) : (
+                      <>
+                        An admin can switch labelling on under Settings › Topics; each question then
+                        gets an intent and signals as it comes in.
+                      </>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </section>
+          ) : (
+            <>
+              <section className="flex flex-col gap-2">
+                <div>
+                  <h3 className="text-base font-semibold">Intent</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Why they asked: one of six fixed intents. Hover an intent for its rule.
+                  </p>
+                </div>
+                {intentReading ? (
+                  <p className="text-sm text-muted-foreground">{intentReading}</p>
+                ) : null}
+                <LabelTable
+                  rows={intentRows}
+                  total={questionTotal}
+                  segments={segments}
+                  split={Boolean(view.split)}
+                  previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+                  present={(key) => ({
+                    name: intentName(key),
+                    description: isIntent(key) ? INTENT_INFO[key].description : undefined,
+                    href: isIntent(key) ? door({ intent: key }) : null,
+                  })}
+                  composition={intentComposition}
+                  hints={{
+                    column: "Intent",
+                    label:
+                      "Why the visitor asked, as the chat model read it: one of six fixed intents. Hover an intent for its rule.",
+                    questions: view.split
+                      ? "Visitor questions with this intent in the period. The bar scales to the largest intent and stacks per series in the chart's colours."
+                      : "Visitor questions with this intent in the period. The bar scales to the largest intent.",
+                    share:
+                      "This intent's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
+                    conversations:
+                      "Threads with at least one question of this intent in the period.",
+                    rest:
+                      namedIntents.length > 5
+                        ? "Other intents, Other and unlabelled"
+                        : "Other and unlabelled",
+                  }}
+                  emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
+                />
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <div>
+                  <h3 className="text-base font-semibold">Signals</h3>
+                  <p className="text-sm text-muted-foreground">
+                    How it went: pushback against the previous answer, frustration, or asking for a
+                    person. A question can carry several, and most carry none.
+                  </p>
+                </div>
+                {signalsReading ? (
+                  <p className="text-sm text-muted-foreground">{signalsReading}</p>
+                ) : null}
+                <LabelTable
+                  rows={signalRows}
+                  total={questionTotal}
+                  segments={segments}
+                  split={Boolean(view.split)}
+                  previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+                  present={(key) => ({
+                    name: signalName(key),
+                    description: isSignal(key) ? SIGNAL_INFO[key].description : undefined,
+                    href: isSignal(key) ? door({ signal: key }) : null,
+                  })}
+                  composition={null}
+                  hints={{
+                    column: "Signal",
+                    label:
+                      "What the chat model noticed about how the question went: one of three fixed signals. Hover a signal for its rule.",
+                    questions: view.split
+                      ? "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal and stacks per series."
+                      : "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal.",
+                    share:
+                      "The percentage of every question in the period that carried this signal. Most questions carry none, so the column does not add up to 100.",
+                    conversations:
+                      "Threads with at least one question carrying this signal in the period.",
+                    rest: "",
+                  }}
+                  emptyText={
+                    questionTotal > 0
+                      ? `No question ${PERIOD_SPAN[view.period]} carried a signal.`
+                      : `No questions ${PERIOD_SPAN[view.period]}.`
+                  }
+                />
+              </section>
+            </>
+          )}
+        </section>
 
         {view.by ? (
           <section className="flex flex-col gap-2">
@@ -505,181 +758,6 @@ export default async function UsagePage({
             </div>
           </section>
         ) : null}
-
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium">Topics</h2>
-          {topicsReading ? <p className="text-sm text-muted-foreground">{topicsReading}</p> : null}
-          {project.topics.length === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Questions are not grouped yet</CardTitle>
-                <CardDescription>
-                  {canConfigure ? (
-                    <>
-                      Name the topics visitors ask about under{" "}
-                      <Link href="/settings/topics" className="underline underline-offset-4">
-                        Settings › Topics
-                      </Link>
-                      , and each question is labelled with one as it comes in.
-                    </>
-                  ) : (
-                    <>
-                      An admin can name the topics under Settings › Topics; each question is then
-                      labelled with one as it comes in.
-                    </>
-                  )}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : (
-            <LabelTable
-              rows={topicRows}
-              total={topicTotal}
-              segments={segments}
-              split={Boolean(view.split)}
-              previousLabel={previous ? PERIOD_LABEL[view.period] : null}
-              present={(key) => ({
-                name: topicName(project.topics, key),
-                description: project.topics.find((t) => t.key === key)?.description,
-                href: door({ topic: key }),
-              })}
-              composition={topicsComposition}
-              hints={{
-                column: "Topic",
-                label:
-                  "The label the chat model gave each question, from the list under Settings › Topics. Hover a topic for its description.",
-                questions: view.split
-                  ? "Visitor questions labelled with this topic in the period. The bar scales to the largest topic and stacks per series in the chart's colours."
-                  : "Visitor questions labelled with this topic in the period. The bar scales to the largest topic.",
-                share:
-                  "This topic's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
-                conversations: "Threads with at least one question on this topic in the period.",
-                rest:
-                  namedTopics.length > 5
-                    ? "Other topics, Other and unlabelled"
-                    : "Other and unlabelled",
-              }}
-              emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
-            />
-          )}
-        </section>
-
-        {!project.classifyQuestions && !labelled ? (
-          <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium">Intent and signals</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Questions are not labelled</CardTitle>
-                <CardDescription>
-                  {canConfigure ? (
-                    <>
-                      Labelling is switched off under{" "}
-                      <Link href="/settings/topics" className="underline underline-offset-4">
-                        Settings › Topics
-                      </Link>
-                      . Switch it on and each question gets an intent and signals as it comes in.
-                    </>
-                  ) : (
-                    <>
-                      An admin can switch labelling on under Settings › Topics; each question then
-                      gets an intent and signals as it comes in.
-                    </>
-                  )}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </section>
-        ) : (
-          <>
-            <section className="flex flex-col gap-2">
-              <h2 className="text-sm font-medium">
-                Intent
-                <span className="ml-2 font-normal text-muted-foreground">
-                  <Hint hint="Why the visitor asked, one of six fixed intents the chat model picks for every question. Hover an intent for its rule.">
-                    why they asked
-                  </Hint>
-                </span>
-              </h2>
-              {intentReading ? (
-                <p className="text-sm text-muted-foreground">{intentReading}</p>
-              ) : null}
-              <LabelTable
-                rows={intentRows}
-                total={questionTotal}
-                segments={segments}
-                split={Boolean(view.split)}
-                previousLabel={previous ? PERIOD_LABEL[view.period] : null}
-                present={(key) => ({
-                  name: intentName(key),
-                  description: isIntent(key) ? INTENT_INFO[key].description : undefined,
-                  href: isIntent(key) ? door({ intent: key }) : null,
-                })}
-                composition={intentComposition}
-                hints={{
-                  column: "Intent",
-                  label:
-                    "Why the visitor asked, as the chat model read it: one of six fixed intents. Hover an intent for its rule.",
-                  questions: view.split
-                    ? "Visitor questions with this intent in the period. The bar scales to the largest intent and stacks per series in the chart's colours."
-                    : "Visitor questions with this intent in the period. The bar scales to the largest intent.",
-                  share:
-                    "This intent's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
-                  conversations: "Threads with at least one question of this intent in the period.",
-                  rest:
-                    namedIntents.length > 5
-                      ? "Other intents, Other and unlabelled"
-                      : "Other and unlabelled",
-                }}
-                emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
-              />
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <h2 className="text-sm font-medium">
-                Signals
-                <span className="ml-2 font-normal text-muted-foreground">
-                  <Hint hint="How it went for the visitor: pushback against the previous answer, frustration, or asking for a person. A question can carry several, and most carry none.">
-                    how it went
-                  </Hint>
-                </span>
-              </h2>
-              {signalsReading ? (
-                <p className="text-sm text-muted-foreground">{signalsReading}</p>
-              ) : null}
-              <LabelTable
-                rows={signalRows}
-                total={questionTotal}
-                segments={segments}
-                split={Boolean(view.split)}
-                previousLabel={previous ? PERIOD_LABEL[view.period] : null}
-                present={(key) => ({
-                  name: signalName(key),
-                  description: isSignal(key) ? SIGNAL_INFO[key].description : undefined,
-                  href: isSignal(key) ? door({ signal: key }) : null,
-                })}
-                composition={null}
-                hints={{
-                  column: "Signal",
-                  label:
-                    "What the chat model noticed about how the question went: one of three fixed signals. Hover a signal for its rule.",
-                  questions: view.split
-                    ? "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal and stacks per series."
-                    : "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal.",
-                  share:
-                    "The percentage of every question in the period that carried this signal. Most questions carry none, so the column does not add up to 100.",
-                  conversations:
-                    "Threads with at least one question carrying this signal in the period.",
-                  rest: "",
-                }}
-                emptyText={
-                  questionTotal > 0
-                    ? `No question ${PERIOD_SPAN[view.period]} carried a signal.`
-                    : `No questions ${PERIOD_SPAN[view.period]}.`
-                }
-              />
-            </section>
-          </>
-        )}
       </div>
     </>
   );

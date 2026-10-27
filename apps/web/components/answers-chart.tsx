@@ -30,7 +30,7 @@ import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { segmentPath } from "@/lib/column-segment";
-import { conversationsHref } from "@/lib/conversations-view";
+import { conversationsHref, DEFAULT_VIEW } from "@/lib/conversations-view";
 
 export const description = "Answers per day — certain vs uncertain";
 
@@ -117,15 +117,10 @@ export function AnswersChart({ data }: { data: ChartPoint[] }) {
       if (date)
         router.push(
           conversationsHref("/conversations", {
-            filter: "all",
+            ...DEFAULT_VIEW,
             period: "custom",
             from: date,
             to: date,
-            topic: null,
-            intent: null,
-            signal: null,
-            context: null,
-            user: null,
           }),
         );
     },

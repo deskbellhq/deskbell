@@ -13,6 +13,7 @@ import { abuseConfig } from "@/lib/abuse/config";
 import { loadToolUsage, summarizeUsage } from "@/lib/actions/usage-query";
 import { requireMember } from "@/lib/auth/session";
 import { getPublicBaseUrl } from "@/lib/base-url";
+import { countConversations } from "@/lib/conversations-list";
 import { getDb } from "@/lib/db";
 import { DEFAULT_PERIOD, groupGaps, resolvePeriod } from "@/lib/gaps";
 import { loadGapRows } from "@/lib/gaps-query";
@@ -99,7 +100,7 @@ export default async function Page() {
 
   // Actions this week; the card renders only when a tool actually ran.
   const usage7d = loadToolUsage(db, project, new Date(Date.now() - 7 * 86_400_000));
-  const [recentRows, [convStats], [msgStats], seriesRows, gapRows] = await Promise.all([
+  const [recentRows, [convStats], [msgStats], seriesRows, gapRows, inbox] = await Promise.all([
     db
       .select({
         id: conversations.id,
@@ -182,12 +183,15 @@ export default async function Page() {
       .groupBy(sql`1`)
       .orderBy(sql`1`),
     loadGapRows(db, project, { from: gapsPeriod.from, to: null }, gapsCfg),
+    // The same count the inbox's "Needs attention" view shows (spec: attention-inbox).
+    countConversations(project, null),
   ]);
 
   const answersTotal = msgStats?.answers ?? 0;
   const stats: OverviewStats = {
     conversations: convStats?.total ?? 0,
     conversations7d: convStats?.last7 ?? 0,
+    attention: inbox.attention,
     questions: msgStats?.questions ?? 0,
     questions7d: msgStats?.questions7d ?? 0,
     answerRate:

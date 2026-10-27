@@ -13,26 +13,36 @@ refusing. The newest thread of the current view is open when the page loads.
 
 ## The inbox
 
-Each row shows the thread's title, a preview of the last message, when it was
-last active, and a marker when the thread contains an uncertain answer: a
-refusal, an answer whose best retrieved match scored under the weak floor, or
-an answer that named something your content does not contain. The rule is the
-one the [Overview](/operate#what-uncertain-means) explains. A second glyph
-marks a thread in which a visitor asked for a person or pushed back on an
-answer — the two [signals](/operate/usage#intent-and-signals) that ask to be
-read.
+Each row answers three questions in three places. A disc at the left says
+how the thread's answers went: filled green for **certain**, filled grey
+for **uncertain** (a refusal, an answer whose best retrieved match scored
+under the weak floor, or an answer that named something your content does
+not contain, the rule the [Overview](/operate#what-uncertain-means)
+explains), hollow for a thread nothing has answered yet. The text is the
+title, a preview of the last message and when it was last active. Small
+glyphs at the right say why a person should read it: a visitor marked an
+answer down, asked for a person, or pushed back on an answer (the
+[signals](/operate/usage#intent-and-signals) the worker writes). Nothing on a
+row is coloured except the disc, so colour means one thing.
 
-The [Usage](/operate/usage) page's numbers open here narrowed to what they
-count: a topic (`?topic=billing`), an intent (`?intent=request`), a signal
-(`?signal=wants_human`), a context value the page attached
-(`?ctx.account=acc_42`), or a signed-in visitor (`?user=…`). Each narrowing
-is a chip above the list with a way back; the three filter counts respect
-it.
+Two views sit above the list with their counts for the period: **All**, and
+**Needs attention**, which is every thread the disc or a glyph marks:
+uncertain, marked down, asking for a person, or pushing back. The view is
+part of the address (`/conversations?view=attention`), so it can be
+bookmarked or shared, and it stays selected while you move between threads.
+The Overview's Conversations card links here with the same number.
 
-Three views sit above the list, each with its count: **All**, **Uncertain**,
-and **Downvoted** (threads with an answer a visitor marked down). The view is
-part of the address (`/conversations?filter=down`), so it can be bookmarked or
-shared, and it stays selected while you move between threads.
+**+ Filter** narrows either view by one property at a time: the outcome
+(certain, uncertain, unanswered), feedback (marked down or up), an intent, a
+signal, one of your topics, or any context key your pages attach, with the
+ids seen under it named the way your page named them. Each narrowing is a
+chip above the list with a way back, and each is part of the address
+(`?outcome=uncertain`, `?feedback=down`, `?intent=request`,
+`?signal=wants_human`, `?topic=billing`, `?ctx.account=acc_42`). The
+[Usage](/operate/usage) page's numbers open here with the matching chip; a
+signed-in visitor arrives the same way (`?user=…`), since there is no list
+of visitors to pick from. Links written with the older `?filter=down` and
+`?filter=uncertain` still open the same threads.
 
 A period control sits beside the count: **All time**, **Today**, **Last 7
 days**, **Last 30 days**, **Last 90 days**, or a custom range of two dates.
@@ -40,8 +50,8 @@ Days are UTC calendar days, the same buckets the Overview chart draws, and a
 relative period is the last so many days ending today. A preset is part of
 the address too (`/conversations?period=7d`), and a custom range is its two
 days (`/conversations?from=2026-09-01&to=2026-09-23`). Clicking a column of
-the Overview chart opens the page on that one day. The three filter counts
-are for the period; the list shows up to two hundred of its most recently
+the Overview chart opens the page on that one day. The two view counts are
+for the period; the list shows up to two hundred of its most recently
 active threads.
 
 A title is the first question trimmed to eighty characters, or one short
@@ -51,11 +61,14 @@ name they chose.
 
 ## The thread
 
-The transcript alternates the visitor's messages and the assistant's answers,
+Under the title, one line sums the thread up in the same three slots as the
+inbox row: the status badge, then **About** with the thread's topics and
+intents as plain pills, then **Needs** with what asks for a person: a
+human, pushed back, marked down. Hovering a pill shows the rule. The
+transcript alternates the visitor's messages and the assistant's answers,
 rendered with the same Markdown the widget shows. Beside each question, when
-labelling is on, a badge names its intent (why they asked) and one more each
-signal it carries (pushback, frustration, wants a human); hovering a badge
-shows the rule. The lists and the switch are explained under
+labelling is on, a badge names its intent and each signal it carries,
+frustration included; the lists and the switch are explained under
 [Usage](/operate/usage#intent-and-signals). Under each answer:
 
 - **Sources.** A pill per cited page, linking to it. A cited written answer

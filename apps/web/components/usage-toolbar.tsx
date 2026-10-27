@@ -8,10 +8,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deskbell/ui/components/select";
-import { X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { FilterChips } from "@/components/filter-chips";
 import { type PeriodKey, type UsageView, usageHref, withoutFilter } from "@/lib/usage-view";
 
 /**
@@ -83,26 +83,14 @@ export function UsageToolbar({
           onChange={(by) => router.push(href({ by }))}
         />
       </div>
-      {view.filters.length > 0 ? (
-        <ul aria-label="Filters" className="flex flex-wrap items-center gap-1.5">
-          {view.filters.map((f) => (
-            <li
-              key={f.key}
-              className="flex items-center gap-1 rounded-full border bg-muted/40 py-0.5 pr-1 pl-2.5 text-xs"
-            >
-              <span className="text-muted-foreground">{f.key}:</span>
-              <span className="font-medium">{filterLabels[f.key] ?? f.id}</span>
-              <Link
-                href={usageHref(pathname, withoutFilter(view, f.key))}
-                aria-label={`Remove filter ${f.key}`}
-                className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="size-3" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <FilterChips
+        label="Filters"
+        chips={view.filters.map((f) => ({
+          name: f.key,
+          value: filterLabels[f.key] ?? f.id,
+          clearHref: usageHref(pathname, withoutFilter(view, f.key)),
+        }))}
+      />
     </div>
   );
 }

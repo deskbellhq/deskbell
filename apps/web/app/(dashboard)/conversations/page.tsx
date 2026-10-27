@@ -20,14 +20,8 @@ export default async function ConversationsIndexPage({
 }) {
   const [params, project] = await Promise.all([searchParams, getDefaultProject()]);
   const view = parseView(params);
-  const [newest] = await listConversations(project, {
-    filter: view.filter,
+  const [newest] = await listConversations(project, view, {
     range: resolveRange(view, todayUtc()),
-    topic: view.topic,
-    intent: view.intent,
-    signal: view.signal,
-    context: view.context,
-    user: view.user,
     limit: 1,
   });
 

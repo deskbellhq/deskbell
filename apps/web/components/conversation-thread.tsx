@@ -4,8 +4,10 @@ import {
   intentName,
   isIntent,
   isSignal,
+  type ProjectTopics,
   SIGNAL_INFO,
   signalName,
+  topicName,
 } from "@deskbell/shared";
 import { Badge } from "@deskbell/ui/components/badge";
 import { Button } from "@deskbell/ui/components/button";
@@ -99,7 +101,7 @@ export async function ConversationThread({
   project,
 }: {
   id: string;
-  project: { orgId: string; id: string };
+  project: { orgId: string; id: string; topics: ProjectTopics };
 }) {
   const db = getDb();
 
@@ -168,6 +170,34 @@ export async function ConversationThread({
   };
   const status = threadStatus(counts);
   const uncertainDetail = threadStatusDetail(counts);
+  // What the visitor meant and what they need, once per thread (spec:
+  // attention-inbox): the distinct topics and intents of its questions in
+  // order of first appearance, and the signals that ask a person to read it.
+  const questions = transcript.filter((m) => m.role === "user");
+  const distinct = (values: Array<string | null>) =>
+    [...new Set(values)].filter((v): v is string => v !== null);
+  const about: Array<{ key: string; name: string; rule?: string }> = [
+    ...distinct(questions.map((m) => m.topic)).map((t) => ({
+      key: `topic:${t}`,
+      name: topicName(project.topics, t),
+    })),
+    ...distinct(questions.map((m) => m.intent)).map((i) => ({
+      key: `intent:${i}`,
+      name: intentName(i),
+      rule: isIntent(i) ? INTENT_INFO[i].description : undefined,
+    })),
+  ];
+  const needs = [
+    questions.some((m) => m.signals?.includes("wants_human"))
+      ? { key: "wants_human", name: "a human", rule: SIGNAL_INFO.wants_human.description }
+      : null,
+    questions.some((m) => m.signals?.includes("pushback"))
+      ? { key: "pushback", name: "pushed back", rule: SIGNAL_INFO.pushback.description }
+      : null,
+    transcript.some((m) => m.feedback === "down")
+      ? { key: "down", name: "marked down", rule: "The visitor marked an answer down" }
+      : null,
+  ].filter((n) => n !== null);
   const citedDocs = [
     ...new Map(
       transcript
@@ -197,6 +227,38 @@ export async function ConversationThread({
             Widget
           </Badge>
         </header>
+        {about.length > 0 || needs.length > 0 ? (
+          <section
+            aria-label="Thread labels"
+            className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-1.5 text-xs"
+          >
+            {about.length > 0 ? (
+              <span className="flex flex-wrap items-center gap-1">
+                <span className="text-muted-foreground">About</span>
+                {about.map((a) => (
+                  <Badge
+                    key={a.key}
+                    variant="outline"
+                    className="text-muted-foreground"
+                    title={a.rule}
+                  >
+                    {a.name}
+                  </Badge>
+                ))}
+              </span>
+            ) : null}
+            {needs.length > 0 ? (
+              <span className="flex flex-wrap items-center gap-1">
+                <span className="text-muted-foreground">Needs</span>
+                {needs.map((n) => (
+                  <Badge key={n.key} variant="outline" title={n.rule}>
+                    {n.name}
+                  </Badge>
+                ))}
+              </span>
+            ) : null}
+          </section>
+        ) : null}
         <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
           <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
             {transcript.map((message) => {

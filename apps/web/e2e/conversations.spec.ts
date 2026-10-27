@@ -69,12 +69,12 @@ test.describe("Conversations", () => {
     const list = page.getByRole("complementary");
     await expect(list.getByRole("link", { name: B.label })).toBeVisible();
     await expect(list.getByRole("link", { name: H.label })).toHaveCount(0);
-    // The period control names the day, and the segments carry it along.
+    // The period control names the day, and the quick views carry it along.
     const period = list.getByRole("combobox", { name: "Period" });
     await expect(period).toHaveText(dayLabel);
-    await expect(list.getByRole("link", { name: /^Downvoted/ })).toHaveAttribute(
+    await expect(list.getByRole("link", { name: /^Needs attention/ })).toHaveAttribute(
       "href",
-      `/conversations?filter=down&from=${today}&to=${today}`,
+      `/conversations?view=attention&from=${today}&to=${today}`,
     );
     // Custom shows its two days; a preset navigates and hides them.
     await expect(list.getByLabel("From")).toHaveValue(today);
@@ -89,15 +89,14 @@ test.describe("Conversations", () => {
     await expect(list.getByRole("link", { name: H.label })).toBeVisible();
   });
 
-  test("the downvoted view lists only marked-down threads and opens the newest", async ({
+  test("a feedback filter lists only marked-down threads and opens the newest", async ({
     page,
   }, testInfo) => {
+    // The old address still works, and is rewritten to the chip it means.
     await page.goto("/conversations?filter=down");
-    const list = page.getByRole("navigation", { name: "Filter" });
-    await expect(list.getByRole("link", { name: /^Downvoted/ })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    const narrowed = page.getByRole("list", { name: "Narrowed to" });
+    await expect(narrowed).toContainText("Feedback:");
+    await expect(narrowed).toContainText("Marked down");
     await expect(page.getByRole("link", { name: B.label })).toBeVisible();
     await expect(page.getByRole("link", { name: H.label })).toHaveCount(0);
     if (testInfo.project.name === "phone") return;
@@ -106,7 +105,66 @@ test.describe("Conversations", () => {
     );
     // A row keeps the view while moving between threads.
     await page.getByRole("link", { name: B.label }).first().click();
-    await expect(page).toHaveURL(/\/conversations\/conv_e2e_b1\?filter=down$/);
+    await expect(page).toHaveURL(/\/conversations\/conv_e2e_b1\?feedback=down$/);
+    // Removing a narrowing opens the newest thread of the wider view, like a quick view does.
+    await expect(narrowed.getByRole("link", { name: "Remove Feedback filter" })).toHaveAttribute(
+      "href",
+      "/conversations",
+    );
+  });
+
+  test("the row marks the outcome and what needs reading, and the views count them", async ({
+    page,
+  }) => {
+    await page.goto("/conversations");
+    const list = page.getByRole("complementary");
+    // B: answered from grounding, marked down. A1: refused. Both need attention; only A1 is uncertain.
+    const b = list.getByRole("link", { name: B.label }).first();
+    await expect(b.getByRole("img", { name: "Certain" })).toBeVisible();
+    await expect(b.getByLabel("Marked an answer down")).toBeVisible();
+    const a = list.getByRole("link", { name: "How do I export a feed?" }).first();
+    await expect(a.getByRole("img", { name: "Uncertain" })).toBeVisible();
+    await expect(a.getByLabel("Marked an answer down")).toHaveCount(0);
+
+    const views = list.getByRole("navigation", { name: "View" });
+    const all = await views.getByRole("link", { name: /^All/ }).innerText();
+    const attention = await views.getByRole("link", { name: /^Needs attention/ }).innerText();
+    const n = (t: string) => Number(t.replace(/\D/g, ""));
+    expect(n(attention)).toBeGreaterThan(0);
+    expect(n(attention)).toBeLessThan(n(all));
+    await views.getByRole("link", { name: /^Needs attention/ }).click();
+    await expect(page).toHaveURL(/\/conversations\?view=attention$/);
+    await expect(list.getByRole("link", { name: B.label })).toBeVisible();
+    await expect(list.getByRole("link", { name: "How do I export a feed?" }).first()).toBeVisible();
+    // A thread with a certain answer and nothing marked is not listed here.
+    await expect(list.getByRole("link", { name: "How are invoices issued?" })).toHaveCount(0);
+    await expect(list.getByRole("link", { name: /^Needs attention/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("the filter menu adds a chip and narrows the list", async ({ page }) => {
+    await page.goto("/conversations");
+    const list = page.getByRole("complementary");
+    await list.getByRole("button", { name: "Filter" }).click();
+    await page.getByRole("menuitem", { name: "Outcome" }).hover();
+    await page.getByRole("menuitem", { name: "Unanswered" }).click();
+    await expect(page).toHaveURL(/\/conversations\?outcome=unanswered$/);
+    const narrowed = page.getByRole("list", { name: "Narrowed to" });
+    await expect(narrowed).toContainText("Outcome:");
+    await expect(narrowed).toContainText("Unanswered");
+    await expect(list.getByRole("link", { name: B.label })).toHaveCount(0);
+    // A context key the host sent is offered with the names it sent.
+    await list.getByRole("button", { name: "Filter" }).click();
+    await page.getByRole("menuitem", { name: "account" }).hover();
+    await page.getByRole("menuitem", { name: "Acme" }).click();
+    await expect(page).toHaveURL(/outcome=unanswered&ctx\.account=acc_acme$/);
+    await expect(narrowed).toContainText("account:");
+    await expect(narrowed).toContainText("Acme");
+    await narrowed.getByRole("link", { name: "Remove Outcome filter" }).click();
+    await expect(page).toHaveURL(/\/conversations\?ctx\.account=acc_acme$/);
+    await expect(list.getByRole("link", { name: "How are invoices issued?" })).toBeVisible();
   });
 
   test("labels a cited written answer on the message, and a page by its title alone", async ({

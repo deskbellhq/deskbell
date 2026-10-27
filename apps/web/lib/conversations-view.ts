@@ -1,8 +1,9 @@
 /**
  * The conversations page's URL state (spec: conversations-inbox-polish,
- * conversations-date-range): a filter and a period, and the one builder that
- * turns a view into a link, so the list header, the rows, the index page and
- * the Overview chart agree on what a view is called.
+ * conversations-date-range, attention-inbox): a quick view, a period and a
+ * set of narrowings, and the one builder that turns a view into a link, so
+ * the list header, the rows, the index page, the Usage page and the
+ * Overview chart agree on what a view is called.
  *
  * Import-free, like ./gaps-view: the inbox controls are client components.
  * The intent and signal keys are repeated here for that reason; the shared
@@ -10,9 +11,10 @@
  * the two agree.
  */
 
-export type ConversationsFilter = "all" | "uncertain" | "down";
-export const DEFAULT_FILTER: ConversationsFilter = "all";
-const FILTERS: readonly ConversationsFilter[] = ["all", "uncertain", "down"];
+/** The two lists above the inbox: everything, or what asks to be read. */
+export type QuickView = "all" | "attention";
+export const DEFAULT_QUICK_VIEW: QuickView = "all";
+const QUICK_VIEWS: readonly QuickView[] = ["all", "attention"];
 
 /**
  * The periods the Gaps page offers, plus today (a chart column) and a custom
@@ -39,40 +41,21 @@ export const PERIOD_LABELS: Record<PeriodKey, string> = {
   custom: "Custom range",
 };
 
-/** One context key with one id a thread must carry (spec: usage-page). */
-export interface ContextFilter {
-  key: string;
-  id: string;
-}
+/** How the thread's answers went: the status badge's three words (lib/thread-status.ts). */
+export const OUTCOME_KEYS = ["certain", "uncertain", "unanswered"] as const;
+export type OutcomeKey = (typeof OUTCOME_KEYS)[number];
+export const OUTCOME_LABELS: Record<OutcomeKey, string> = {
+  certain: "Certain",
+  uncertain: "Uncertain",
+  unanswered: "Unanswered",
+};
 
-export interface ConversationsView {
-  filter: ConversationsFilter;
-  period: PeriodKey;
-  /** Both set for a custom period, YYYY-MM-DD in UTC, from <= to; null otherwise. */
-  from: string | null;
-  to: string | null;
-  /** Threads with a question labelled with this topic key (spec: question-topics); null for any. */
-  topic: string | null;
-  /** Threads with a question of this intent (spec: intent-and-signals); null for any. */
-  intent: IntentKey | null;
-  /** Threads with a question carrying this signal; null for any. */
-  signal: SignalKey | null;
-  /** Threads whose context carries this key with this id; null for any. */
-  context: ContextFilter | null;
-  /** Threads owned by this verified visitor (`end_users.id`); null for any. */
-  user: string | null;
-}
-
-export const DEFAULT_VIEW: ConversationsView = {
-  filter: DEFAULT_FILTER,
-  period: DEFAULT_PERIOD,
-  from: null,
-  to: null,
-  topic: null,
-  intent: null,
-  signal: null,
-  context: null,
-  user: null,
+/** A vote on any answer in the thread. */
+export const FEEDBACK_KEYS = ["down", "up"] as const;
+export type FeedbackKey = (typeof FEEDBACK_KEYS)[number];
+export const FEEDBACK_LABELS: Record<FeedbackKey, string> = {
+  down: "Marked down",
+  up: "Marked up",
 };
 
 /** The fixed lists the worker writes, spelled as `@deskbell/shared` spells them. */
@@ -87,6 +70,56 @@ export const INTENT_KEYS = [
 export type IntentKey = (typeof INTENT_KEYS)[number];
 export const SIGNAL_KEYS = ["pushback", "frustration", "wants_human"] as const;
 export type SignalKey = (typeof SIGNAL_KEYS)[number];
+
+/** One context key with one id a thread must carry (spec: usage-page). */
+export interface ContextFilter {
+  key: string;
+  id: string;
+}
+
+/** Everything a view narrows the list by, apart from the period. */
+export interface Narrowing {
+  view: QuickView;
+  /** Threads whose status is this; null for any. */
+  outcome: OutcomeKey | null;
+  /** Threads with an answer voted this way; null for any. */
+  feedback: FeedbackKey | null;
+  /** Threads with a question labelled with this topic key (spec: question-topics); null for any. */
+  topic: string | null;
+  /** Threads with a question of this intent (spec: intent-and-signals); null for any. */
+  intent: IntentKey | null;
+  /** Threads with a question carrying this signal; null for any. */
+  signal: SignalKey | null;
+  /** Threads whose context carries this key with this id; null for any. */
+  context: ContextFilter | null;
+  /** Threads owned by this verified visitor (`end_users.id`); null for any. */
+  user: string | null;
+}
+
+export interface ConversationsView extends Narrowing {
+  period: PeriodKey;
+  /** Both set for a custom period, YYYY-MM-DD in UTC, from <= to; null otherwise. */
+  from: string | null;
+  to: string | null;
+}
+
+export const DEFAULT_NARROWING: Narrowing = {
+  view: DEFAULT_QUICK_VIEW,
+  outcome: null,
+  feedback: null,
+  topic: null,
+  intent: null,
+  signal: null,
+  context: null,
+  user: null,
+};
+
+export const DEFAULT_VIEW: ConversationsView = {
+  ...DEFAULT_NARROWING,
+  period: DEFAULT_PERIOD,
+  from: null,
+  to: null,
+};
 
 /** The usage page's spellings: a topic key, and a context key as the widget's schema states it. */
 const TOPIC_KEY = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -105,11 +138,9 @@ export interface DayRange {
 type Param = string | string[] | null | undefined;
 const first = (value: Param) => (Array.isArray(value) ? value[0] : value) ?? null;
 
-export function parseFilter(value: Param): ConversationsFilter {
+function oneOf<T extends string>(value: Param, keys: readonly T[]): T | null {
   const v = first(value);
-  return (FILTERS as readonly string[]).includes(v ?? "")
-    ? (v as ConversationsFilter)
-    : DEFAULT_FILTER;
+  return (keys as readonly string[]).includes(v ?? "") ? (v as T) : null;
 }
 
 /** A day is kept only when it is a real calendar date written as the chart writes it. */
@@ -123,39 +154,34 @@ export function parseDay(value: Param): string | null {
 /**
  * `period` wins when it names a relative period; otherwise a custom range
  * needs both ends (swapped into order when reversed); anything else is all
- * time. A bad value is ignored, never an error.
+ * time. A bad value is ignored, never an error. The old `filter=uncertain`
+ * and `filter=down` are read as the outcome and feedback narrowings they
+ * meant, so links written before the quick views still open the same list.
  */
 export function parseView(params: Record<string, Param>): ConversationsView {
-  const filter = parseFilter(params.filter);
-  const narrowing = {
+  const legacy = first(params.filter);
+  const narrowing: Narrowing = {
+    view: oneOf(params.view, QUICK_VIEWS) ?? DEFAULT_QUICK_VIEW,
+    outcome: oneOf(params.outcome, OUTCOME_KEYS) ?? (legacy === "uncertain" ? "uncertain" : null),
+    feedback: oneOf(params.feedback, FEEDBACK_KEYS) ?? (legacy === "down" ? "down" : null),
     topic: parseTopic(params.topic),
-    intent: parseIntent(params.intent),
-    signal: parseSignal(params.signal),
+    intent: oneOf(params.intent, INTENT_KEYS),
+    signal: oneOf(params.signal, SIGNAL_KEYS),
     context: parseContext(params),
     user: parseUser(params.user),
   };
   const period = first(params.period);
   if ((RELATIVE_PERIODS as readonly string[]).includes(period ?? "")) {
-    return { filter, period: period as PeriodKey, from: null, to: null, ...narrowing };
+    return { ...narrowing, period: period as PeriodKey, from: null, to: null };
   }
   const from = parseDay(params.from);
   const to = parseDay(params.to);
   if (from && to) {
     return from <= to
-      ? { filter, period: "custom", from, to, ...narrowing }
-      : { filter, period: "custom", from: to, to: from, ...narrowing };
+      ? { ...narrowing, period: "custom", from, to }
+      : { ...narrowing, period: "custom", from: to, to: from };
   }
-  return { filter, period: DEFAULT_PERIOD, from: null, to: null, ...narrowing };
-}
-
-function parseIntent(value: Param): IntentKey | null {
-  const v = first(value);
-  return (INTENT_KEYS as readonly string[]).includes(v ?? "") ? (v as IntentKey) : null;
-}
-
-function parseSignal(value: Param): SignalKey | null {
-  const v = first(value);
-  return (SIGNAL_KEYS as readonly string[]).includes(v ?? "") ? (v as SignalKey) : null;
+  return { ...narrowing, period: DEFAULT_PERIOD, from: null, to: null };
 }
 
 function parseTopic(value: Param): string | null {
@@ -182,13 +208,15 @@ function parseContext(params: Record<string, Param>): ContextFilter | null {
 /** A link to a view; defaults are omitted from the URL. */
 export function conversationsHref(pathname: string, view: ConversationsView): string {
   const params = new URLSearchParams();
-  if (view.filter !== DEFAULT_FILTER) params.set("filter", view.filter);
+  if (view.view !== DEFAULT_QUICK_VIEW) params.set("view", view.view);
   if (view.period === "custom" && view.from && view.to) {
     params.set("from", view.from);
     params.set("to", view.to);
   } else if (view.period !== DEFAULT_PERIOD && view.period !== "custom") {
     params.set("period", view.period);
   }
+  if (view.outcome) params.set("outcome", view.outcome);
+  if (view.feedback) params.set("feedback", view.feedback);
   if (view.topic) params.set("topic", view.topic);
   if (view.intent) params.set("intent", view.intent);
   if (view.signal) params.set("signal", view.signal);
@@ -196,6 +224,19 @@ export function conversationsHref(pathname: string, view: ConversationsView): st
   if (view.user) params.set("user", view.user);
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;
+}
+
+/** Whether a view narrows the list beyond its quick view and period. */
+export function isNarrowed(view: Narrowing): boolean {
+  return Boolean(
+    view.outcome ||
+      view.feedback ||
+      view.topic ||
+      view.intent ||
+      view.signal ||
+      view.context ||
+      view.user,
+  );
 }
 
 /** Today as the chart writes it: a UTC calendar day. */
