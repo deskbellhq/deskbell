@@ -11,32 +11,45 @@ import {
   SelectValue,
 } from "@deskbell/ui/components/select";
 import { cn } from "@deskbell/ui/lib/utils";
-import { MessageSquareWarning, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useId, useState } from "react";
 
-import type { ConversationCounts, ConversationListRow } from "@/lib/conversations-list";
+import { ConversationsFilterMenu } from "@/components/conversations-filter-menu";
+import { type FilterChip, FilterChips } from "@/components/filter-chips";
+import { AttentionGlyphs, StatusDisc } from "@/components/thread-marks";
+import type {
+  ContextValues,
+  ConversationCounts,
+  ConversationListRow,
+} from "@/lib/conversations-list";
 import {
-  type ConversationsFilter,
   type ConversationsView,
   conversationsHref,
+  FEEDBACK_LABELS,
   formatPeriod,
+  isNarrowed,
+  OUTCOME_LABELS,
   PERIOD_LABELS,
   type PeriodKey,
   parseDay,
+  type QuickView,
   resolveRange,
   shiftDay,
   todayUtc,
 } from "@/lib/conversations-view";
-import { avatarClass, initialOf, relativeTime } from "@/lib/inbox";
+import { relativeTime } from "@/lib/inbox";
 
 export type InboxItem = ConversationListRow;
 
-const FILTERS: { key: ConversationsFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "uncertain", label: "Uncertain" },
-  { key: "down", label: "Downvoted" },
+/** The two lists above the inbox (spec: attention-inbox). */
+const QUICK_VIEWS: { key: QuickView; label: string; title: string }[] = [
+  { key: "all", label: "All", title: "Every thread in the period" },
+  {
+    key: "attention",
+    label: "Needs attention",
+    title: "Uncertain, marked down, or a question that asked for a person or pushed back",
+  },
 ];
 
 const PERIODS: PeriodKey[] = ["all", "today", "7d", "30d", "90d", "custom"];
@@ -68,50 +81,82 @@ export function InboxShell({ list, children }: { list: ReactNode; children: Reac
 }
 
 /**
- * The list pane (spec: conversations-inbox-polish, conversations-date-range).
- * The view is the URL: the period is a select that navigates, the filter
- * segments are links, and every row link carries the view along so the index
- * page opens the newest thread of the same view.
+ * The list pane (spec: conversations-inbox-polish, conversations-date-range,
+ * attention-inbox). The view is the URL: the period is a select that
+ * navigates, the quick views are links with their counts, every narrowing
+ * is a chip with a way back and is added from one menu, and every row link
+ * carries the view along so the index page opens the newest thread of the
+ * same view.
+ *
+ * A row answers three questions in three places: the status disc says how
+ * the answers went, the text says what the thread is, the trailing glyphs
+ * say why a person should read it. Nothing else is drawn on a row.
  */
 export function InboxList({
   rows,
   counts,
   view,
-  labels = { topic: null, intent: null, signal: null, context: null, user: null },
+  labels,
+  topics,
+  contextValues,
+  intentNames,
+  signalNames,
 }: {
   rows: InboxItem[];
-  /** What each filter segment of this period would list. */
+  /** What each quick view of this period would list. */
   counts: ConversationCounts;
   view: ConversationsView;
   /** What the view's topic, intent, signal, context and visitor narrowing are called, when set. */
-  labels?: {
+  labels: {
     topic: string | null;
     intent: string | null;
     signal: string | null;
     context: string | null;
     user: string | null;
   };
+  topics: Parameters<typeof ConversationsFilterMenu>[0]["topics"];
+  contextValues: ContextValues[];
+  intentNames: Record<string, string>;
+  signalNames: Record<string, string>;
 }) {
   const pathname = usePathname();
   const threadOpen = pathname !== "/conversations";
-  const chips = [
+  const clear = (next: Partial<ConversationsView>) =>
+    conversationsHref("/conversations", { ...view, ...next });
+  const chips: FilterChip[] = [
+    view.outcome
+      ? {
+          name: "Outcome",
+          value: OUTCOME_LABELS[view.outcome],
+          clearHref: clear({ outcome: null }),
+        }
+      : null,
+    view.feedback
+      ? {
+          name: "Feedback",
+          value: FEEDBACK_LABELS[view.feedback],
+          clearHref: clear({ feedback: null }),
+        }
+      : null,
     view.topic
-      ? { name: "Topic", value: labels.topic ?? view.topic, clear: { topic: null } }
+      ? { name: "Topic", value: labels.topic ?? view.topic, clearHref: clear({ topic: null }) }
       : null,
     view.intent
-      ? { name: "Intent", value: labels.intent ?? view.intent, clear: { intent: null } }
+      ? { name: "Intent", value: labels.intent ?? view.intent, clearHref: clear({ intent: null }) }
       : null,
     view.signal
-      ? { name: "Signal", value: labels.signal ?? view.signal, clear: { signal: null } }
+      ? { name: "Signal", value: labels.signal ?? view.signal, clearHref: clear({ signal: null }) }
       : null,
     view.context
       ? {
           name: view.context.key,
           value: labels.context ?? view.context.id,
-          clear: { context: null },
+          clearHref: clear({ context: null }),
         }
       : null,
-    view.user ? { name: "Visitor", value: labels.user ?? view.user, clear: { user: null } } : null,
+    view.user
+      ? { name: "Visitor", value: labels.user ?? view.user, clearHref: clear({ user: null }) }
+      : null,
   ].filter((c) => c !== null);
 
   return (
@@ -122,48 +167,39 @@ export function InboxList({
             {rows.length} {rows.length === 1 ? "conversation" : "conversations"}
           </span>
         </PeriodControl>
-        <nav aria-label="Filter" className="flex rounded-md border">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.key}
-              asChild
-              variant={f.key === view.filter ? "secondary" : "ghost"}
-              size="sm"
-              // Three labels and their counts must fit the 20rem pane at
-              // three digits each: tighter padding and gap than the default.
-              className="min-w-0 flex-1 gap-1 rounded-none px-2 text-xs first:rounded-l-md last:rounded-r-md"
-            >
-              {/* The count follows the label so each link's name is a stable prefix. */}
-              <Link
-                href={conversationsHref("/conversations", { ...view, filter: f.key })}
-                aria-current={f.key === view.filter ? "page" : undefined}
+        <div className="flex items-center gap-2">
+          <nav aria-label="View" className="flex min-w-0 flex-1 rounded-md border">
+            {QUICK_VIEWS.map((q) => (
+              <Button
+                key={q.key}
+                asChild
+                variant={q.key === view.view ? "secondary" : "ghost"}
+                size="sm"
+                className="min-w-0 flex-1 gap-1 rounded-none px-2 text-xs first:rounded-l-md last:rounded-r-md"
               >
-                {f.label}
-                <span className="tabular-nums text-muted-foreground">{counts[f.key]}</span>
-              </Link>
-            </Button>
-          ))}
-        </nav>
-        {chips.length > 0 ? (
-          <ul aria-label="Narrowed to" className="flex flex-wrap gap-1.5">
-            {chips.map((chip) => (
-              <li
-                key={chip.name}
-                className="flex min-w-0 items-center gap-1 rounded-full border bg-muted/40 py-0.5 pr-1 pl-2.5 text-xs"
-              >
-                <span className="text-muted-foreground">{chip.name}:</span>
-                <span className="truncate font-medium">{chip.value}</span>
+                {/* The count follows the label so each link's name is a stable prefix. */}
                 <Link
-                  href={conversationsHref("/conversations", { ...view, ...chip.clear })}
-                  aria-label={`Remove ${chip.name} filter`}
-                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  href={clear({ view: q.key })}
+                  aria-current={q.key === view.view ? "page" : undefined}
+                  title={q.title}
                 >
-                  <X className="size-3" />
+                  <span className="truncate">{q.label}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {counts[q.key]}
+                  </span>
                 </Link>
-              </li>
+              </Button>
             ))}
-          </ul>
-        ) : null}
+          </nav>
+          <ConversationsFilterMenu
+            view={view}
+            topics={topics}
+            contextValues={contextValues}
+            intentNames={intentNames}
+            signalNames={signalNames}
+          />
+        </div>
+        <FilterChips label="Narrowed to" chips={chips} />
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {rows.length === 0 ? (
@@ -181,18 +217,11 @@ export function InboxList({
                 href={conversationsHref(`/conversations/${item.id}`, view)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
+                  "flex items-start gap-2.5 rounded-lg px-3 py-2.5 transition-colors",
                   active ? "bg-muted" : "hover:bg-muted/60",
                 )}
               >
-                <span
-                  className={cn(
-                    "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white",
-                    avatarClass(item.sessionId),
-                  )}
-                >
-                  {initialOf(item.title)}
-                </span>
+                <StatusDisc status={item.status} className="mt-[7px]" />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-sm font-medium">{item.title}</span>
                   <span className="truncate text-xs text-muted-foreground">
@@ -207,20 +236,11 @@ export function InboxList({
                   >
                     {relativeTime(item.time)}
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    {item.attention ? (
-                      <MessageSquareWarning
-                        className="size-3 text-muted-foreground"
-                        aria-label="A visitor asked for a person or pushed back on an answer"
-                      />
-                    ) : null}
-                    {item.uncertain ? (
-                      <span
-                        className="size-2 rounded-full bg-uncertain"
-                        title="Contains an uncertain answer — refused or weakly grounded"
-                      />
-                    ) : null}
-                  </span>
+                  <AttentionGlyphs
+                    downvoted={item.downvoted}
+                    wantsHuman={item.wantsHuman}
+                    pushback={item.pushback}
+                  />
                 </span>
               </Link>
             );
@@ -232,15 +252,16 @@ export function InboxList({
 }
 
 function emptyMessage(view: ConversationsView, counts: ConversationCounts): string {
-  if (view.period !== "all" && counts.all === 0) {
+  if (view.period !== "all" && counts.all === 0 && !isNarrowed(view)) {
     return view.period === "custom"
       ? `No conversations between ${formatPeriod(view).replace(" – ", " and ")}.`
       : `No conversations in the ${PERIOD_LABELS[view.period].toLowerCase()}.`;
   }
-  if (counts.all === 0)
+  if (counts.all === 0 && !isNarrowed(view))
     return "No conversations yet — ring the bell in the corner or hit “Ask a question” to try the widget.";
-  if (view.filter === "down") return "No answer has been marked down.";
-  return "Every answer was grounded above the weak floor.";
+  if (isNarrowed(view))
+    return "No conversation matches these filters. Remove one, or widen the period.";
+  return "Nothing needs attention: every answer was certain, and no one marked one down, asked for a person or pushed back.";
 }
 
 /**

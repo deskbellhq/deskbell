@@ -3,25 +3,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   conversationsHref,
+  DEFAULT_VIEW,
   formatPeriod,
   INTENT_KEYS,
+  isNarrowed,
   parseDay,
-  parseFilter,
   parseView,
   resolveRange,
   SIGNAL_KEYS,
   shiftDay,
 } from "./conversations-view";
-
-describe("parseFilter", () => {
-  it("accepts the three views and falls back to all", () => {
-    expect(parseFilter("uncertain")).toBe("uncertain");
-    expect(parseFilter("down")).toBe("down");
-    expect(parseFilter(["down", "all"])).toBe("down");
-    expect(parseFilter("everything")).toBe("all");
-    expect(parseFilter(undefined)).toBe("all");
-  });
-});
 
 describe("parseDay", () => {
   it("keeps a real calendar date in the chart's shape and drops the rest", () => {
@@ -37,59 +28,63 @@ describe("parseDay", () => {
 
 describe("parseView", () => {
   it("reads a relative period", () => {
-    expect(parseView({ period: "7d" })).toEqual({
-      filter: "all",
-      period: "7d",
-      from: null,
-      to: null,
-      topic: null,
-      intent: null,
-      signal: null,
-      context: null,
-      user: null,
-    });
-    expect(parseView({ period: "today", filter: "down" }).period).toBe("today");
+    expect(parseView({ period: "7d" })).toEqual({ ...DEFAULT_VIEW, period: "7d" });
+    expect(parseView({ period: "today", view: "attention" }).period).toBe("today");
   });
   it("reads a custom range from both ends, in order", () => {
     expect(parseView({ from: "2026-09-01", to: "2026-09-23" })).toEqual({
-      filter: "all",
+      ...DEFAULT_VIEW,
       period: "custom",
       from: "2026-09-01",
       to: "2026-09-23",
-      topic: null,
-      intent: null,
-      signal: null,
-      context: null,
-      user: null,
     });
     expect(parseView({ from: "2026-09-23", to: "2026-09-01" })).toMatchObject({
       from: "2026-09-01",
       to: "2026-09-23",
-      topic: null,
-      intent: null,
-      signal: null,
-      context: null,
-      user: null,
     });
   });
   it("falls back to all time when a range is half or broken", () => {
     expect(parseView({ from: "2026-09-01" }).period).toBe("all");
     expect(parseView({ from: "2026-09-01", to: "nope" }).period).toBe("all");
     expect(parseView({ period: "custom" }).period).toBe("all");
-    expect(parseView({ period: "yesterday", filter: "nope" })).toEqual({
-      filter: "all",
-      period: "all",
-      from: null,
-      to: null,
-      topic: null,
-      intent: null,
-      signal: null,
-      context: null,
-      user: null,
-    });
+    expect(parseView({ period: "yesterday", view: "nope" })).toEqual(DEFAULT_VIEW);
   });
   it("lets period win over a stray range", () => {
     expect(parseView({ period: "30d", from: "2026-09-01", to: "2026-09-23" }).period).toBe("30d");
+  });
+  it("reads the quick view and every narrowing", () => {
+    expect(
+      parseView({
+        view: "attention",
+        outcome: "uncertain",
+        feedback: "down",
+        topic: "billing",
+        intent: "request",
+        signal: "wants_human",
+        "ctx.account": "acc_1",
+        user: "eu_1",
+      }),
+    ).toEqual({
+      ...DEFAULT_VIEW,
+      view: "attention",
+      outcome: "uncertain",
+      feedback: "down",
+      topic: "billing",
+      intent: "request",
+      signal: "wants_human",
+      context: { key: "account", id: "acc_1" },
+      user: "eu_1",
+    });
+    expect(
+      parseView({ outcome: "refused", feedback: "meh", intent: "angry", signal: "HOW_TO" }),
+    ).toEqual(DEFAULT_VIEW);
+  });
+  it("reads the old filter segment as the narrowing it meant", () => {
+    expect(parseView({ filter: "down" })).toMatchObject({ view: "all", feedback: "down" });
+    expect(parseView({ filter: "uncertain" })).toMatchObject({ outcome: "uncertain" });
+    expect(parseView({ filter: "all" })).toEqual(DEFAULT_VIEW);
+    // The new spelling wins when both are present.
+    expect(parseView({ filter: "down", feedback: "up" }).feedback).toBe("up");
   });
 });
 
@@ -98,29 +93,13 @@ describe("intent and signal narrowing", () => {
     expect([...INTENT_KEYS]).toEqual([...INTENTS]);
     expect([...SIGNAL_KEYS]).toEqual([...SIGNALS]);
   });
-  it("keeps a known key and drops anything else", () => {
-    expect(parseView({ intent: "request", signal: "wants_human" })).toMatchObject({
-      intent: "request",
-      signal: "wants_human",
-    });
-    expect(parseView({ intent: "angry", signal: "HOW_TO" })).toMatchObject({
-      intent: null,
-      signal: null,
-    });
-    expect(conversationsHref("/conversations", parseView({ period: "7d", intent: "how_to" }))).toBe(
-      "/conversations?period=7d&intent=how_to",
-    );
-    expect(conversationsHref("/conversations", parseView({ signal: "pushback" }))).toBe(
-      "/conversations?signal=pushback",
-    );
-  });
 });
 
 describe("conversationsHref", () => {
-  it("omits the defaults and keeps the pathname", () => {
+  it("omits the defaults, never writes the old filter, and keeps the pathname", () => {
     expect(conversationsHref("/conversations", parseView({}))).toBe("/conversations");
     expect(conversationsHref("/conversations/c1", parseView({ filter: "down" }))).toBe(
-      "/conversations/c1?filter=down",
+      "/conversations/c1?feedback=down",
     );
     expect(conversationsHref("/conversations", parseView({ period: "7d" }))).toBe(
       "/conversations?period=7d",
@@ -128,15 +107,41 @@ describe("conversationsHref", () => {
     expect(
       conversationsHref(
         "/conversations",
-        parseView({ filter: "uncertain", from: "2026-09-22", to: "2026-09-22" }),
+        parseView({
+          view: "attention",
+          outcome: "uncertain",
+          from: "2026-09-22",
+          to: "2026-09-22",
+        }),
       ),
-    ).toBe("/conversations?filter=uncertain&from=2026-09-22&to=2026-09-22");
+    ).toBe("/conversations?view=attention&from=2026-09-22&to=2026-09-22&outcome=uncertain");
+    expect(conversationsHref("/conversations", parseView({ period: "7d", intent: "how_to" }))).toBe(
+      "/conversations?period=7d&intent=how_to",
+    );
+    expect(conversationsHref("/conversations", parseView({ signal: "pushback" }))).toBe(
+      "/conversations?signal=pushback",
+    );
   });
   it("round-trips through parseView", () => {
-    const view = parseView({ filter: "down", from: "2026-09-01", to: "2026-09-23" });
+    const view = parseView({
+      view: "attention",
+      feedback: "down",
+      topic: "exports",
+      "ctx.site": "s1",
+      from: "2026-09-01",
+      to: "2026-09-23",
+    });
     const href = conversationsHref("/conversations", view);
     const params = Object.fromEntries(new URL(`http://x${href}`).searchParams);
     expect(parseView(params)).toEqual(view);
+  });
+});
+
+describe("isNarrowed", () => {
+  it("is false for a quick view and a period alone", () => {
+    expect(isNarrowed(parseView({ view: "attention", period: "7d" }))).toBe(false);
+    expect(isNarrowed(parseView({ topic: "billing" }))).toBe(true);
+    expect(isNarrowed(parseView({ outcome: "certain" }))).toBe(true);
   });
 });
 
@@ -172,46 +177,10 @@ describe("shiftDay", () => {
 
 describe("formatPeriod", () => {
   it("names a preset, a day, or a span", () => {
-    expect(formatPeriod(parseView({}))).toBe("All time");
-    expect(formatPeriod(parseView({ period: "30d" }))).toBe("Last 30 days");
+    expect(formatPeriod(parseView({ period: "7d" }))).toBe("Last 7 days");
     expect(formatPeriod(parseView({ from: "2026-09-22", to: "2026-09-22" }))).toBe("Sep 22");
     expect(formatPeriod(parseView({ from: "2026-09-01", to: "2026-09-23" }))).toBe(
       "Sep 1 – Sep 23",
     );
-  });
-});
-
-describe("topic and context filters", () => {
-  it("reads a topic key and the first ctx.<key> pair, dropping bad spellings", () => {
-    const view = parseView({ topic: "billing", "ctx.account": "acc_1", "ctx.site": "s" });
-    expect(view.topic).toBe("billing");
-    expect(view.context).toEqual({ key: "account", id: "acc_1" });
-    expect(parseView({ topic: "Not A Key", "ctx.1bad": "x" })).toMatchObject({
-      topic: null,
-      intent: null,
-      signal: null,
-      context: null,
-      user: null,
-    });
-  });
-
-  it("writes them back and round-trips", () => {
-    const view = parseView({ period: "7d", topic: "billing", "ctx.account": "acc 1" });
-    const href = conversationsHref("/conversations", view);
-    expect(href).toBe("/conversations?period=7d&topic=billing&ctx.account=acc+1");
-    const url = new URL(href, "http://x");
-    expect(parseView(Object.fromEntries(url.searchParams))).toEqual(view);
-  });
-});
-
-describe("visitor filter", () => {
-  it("reads an end-user id, drops anything else, and round-trips", () => {
-    expect(parseView({ user: "eu_abc-1" }).user).toBe("eu_abc-1");
-    expect(parseView({ user: "not an id" }).user).toBeNull();
-    expect(parseView({ user: "x".repeat(65) }).user).toBeNull();
-    const view = parseView({ period: "7d", user: "eu_abc", "ctx.site": "s1" });
-    const href = conversationsHref("/conversations", view);
-    expect(href).toBe("/conversations?period=7d&ctx.site=s1&user=eu_abc");
-    expect(parseView(Object.fromEntries(new URL(href, "http://x").searchParams))).toEqual(view);
   });
 });

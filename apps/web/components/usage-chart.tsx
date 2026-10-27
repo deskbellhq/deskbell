@@ -22,7 +22,7 @@ import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { segmentPath } from "@/lib/column-segment";
-import { conversationsHref } from "@/lib/conversations-view";
+import { conversationsHref, DEFAULT_VIEW } from "@/lib/conversations-view";
 import { type ChartRow, type Segment, seriesKey, shiftUtcDay, weeklyRows } from "@/lib/usage";
 import type { UsageFilter } from "@/lib/usage-view";
 
@@ -99,14 +99,10 @@ export function UsageChart({
     if (!date) return;
     router.push(
       conversationsHref("/conversations", {
-        filter: "all",
+        ...DEFAULT_VIEW,
         period: "custom",
         from: date,
         to: unit === "week" ? shiftUtcDay(date, 6) : date,
-        topic: null,
-        intent: null,
-        signal: null,
-        user: null,
         context: filter,
       }),
     );

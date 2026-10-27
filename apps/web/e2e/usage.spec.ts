@@ -15,11 +15,13 @@ function card(page: Page, label: string) {
   return page.locator("dl > *").filter({ has: page.getByText(label, { exact: true }) });
 }
 
-/** The table under one of the labelled sections: Topics, Intent or Signals. */
+/** The table under one of the labelled sections of "What visitors ask": Topics, Intent or Signals. */
 function labelTable(page: Page, heading: string) {
+  // The group section contains the heading too; the innermost match is the one wanted.
   return page
     .locator("section")
-    .filter({ has: page.getByRole("heading", { level: 2, name: new RegExp(`^${heading}`) }) })
+    .filter({ has: page.getByRole("heading", { level: 3, name: heading, exact: true }) })
+    .last()
     .getByRole("table");
 }
 
@@ -35,7 +37,7 @@ test.describe("Usage", () => {
     const chip = page.getByRole("list", { name: "Filters" }).getByRole("listitem");
     await expect(chip).toContainText("user_type:");
     await expect(chip).toContainText("customer");
-    await expect(chip.getByRole("link", { name: "Remove filter user_type" })).toHaveAttribute(
+    await expect(chip.getByRole("link", { name: "Remove user_type filter" })).toHaveAttribute(
       "href",
       "/usage?period=7d",
     );
@@ -53,7 +55,10 @@ test.describe("Usage", () => {
 
   test("breaks customers down by account", async ({ page }) => {
     await page.goto(`${CUSTOMER}&by=account`);
-    const table = page.getByRole("table").first();
+    const table = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { level: 2, name: /^By account/ }) })
+      .getByRole("table");
     const acme = table.getByRole("row").filter({ hasText: USAGE.accounts.acme.name });
     const globex = table.getByRole("row").filter({ hasText: USAGE.accounts.globex.name });
     await expect(acme.getByRole("cell").nth(1)).toHaveText("1");
@@ -99,6 +104,15 @@ test.describe("Usage", () => {
 
   test("counts intents and signals and opens the conversations behind them", async ({ page }) => {
     await page.goto(CUSTOMER);
+    // The three shares worth acting on sit on the group's heading, each a door.
+    const acting = page.getByRole("list", { name: "Worth acting on" });
+    await expect(acting.getByRole("link", { name: /^Requests/ })).toContainText("20%");
+    await expect(acting.getByRole("link", { name: /^Wants a human/ })).toContainText("20%");
+    await expect(acting.getByRole("link", { name: /^Pushback/ })).toContainText("20%");
+    await expect(acting.getByRole("link", { name: /^Requests/ })).toHaveAttribute(
+      "href",
+      "/conversations?period=7d&intent=request&ctx.user_type=customer",
+    );
     const intents = labelTable(page, "Intent");
     const howTo = intents.getByRole("row").filter({ hasText: "How-to" });
     await expect(howTo.getByRole("cell").nth(1)).toHaveText("2");
@@ -145,15 +159,17 @@ test.describe("Usage", () => {
     await expect(page.getByRole("link", { name: "How do I schedule an export?" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Can I export to CSV?" })).toHaveCount(0);
 
-    // Only a thread that pushed back or asked for a person wears the inbox glyph.
+    // Only a thread that pushed back or asked for a person wears a glyph.
     await page.goto("/conversations?period=7d&intent=how_to&ctx.user_type=customer");
     await expect(
-      page.getByRole("link", { name: "How are invoices issued?" }).getByLabel(/asked for a person/),
+      page
+        .getByRole("link", { name: "How are invoices issued?" })
+        .getByLabel(/Pushed back|Asked for/),
     ).toHaveCount(0);
     await expect(
       page
         .getByRole("link", { name: "How do I schedule an export?" })
-        .getByLabel(/asked for a person/),
+        .getByLabel("Pushed back on an answer"),
     ).toBeVisible();
   });
 
@@ -235,17 +251,24 @@ test("the Conversations page opens the newest thread of the narrowed view", asyn
     "How do I schedule an export?",
   );
   // Each question wears its intent and signals (spec: intent-and-signals).
-  await expect(transcript.getByText("How-to", { exact: true })).toBeVisible();
-  await expect(transcript.getByText("Troubleshooting", { exact: true })).toBeVisible();
+  // Once beside the question, and again in the header's summary line.
+  await expect(transcript.getByText("How-to", { exact: true })).toHaveCount(2);
+  await expect(transcript.getByText("Troubleshooting", { exact: true })).toHaveCount(2);
   await expect(transcript.getByText("Pushback", { exact: true })).toBeVisible();
   await expect(transcript.getByText("Frustration", { exact: true })).toBeVisible();
   // The inbox marks the thread that pushed back and the one that wants a person.
   await expect(
     page
       .getByRole("link", { name: "How do I schedule an export?" })
-      .getByLabel(/asked for a person/),
+      .getByLabel("Pushed back on an answer"),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Can I export to CSV?" }).getByLabel(/asked for a person/),
+    page.getByRole("link", { name: "Can I export to CSV?" }).getByLabel("Asked for a person"),
   ).toBeVisible();
+  // And the header sums the thread up: what it is about, what it needs.
+  const labelsLine = transcript.getByLabel("Thread labels");
+  await expect(labelsLine).toContainText("About");
+  await expect(labelsLine).toContainText("Exports");
+  await expect(labelsLine).toContainText("Needs");
+  await expect(labelsLine).toContainText("pushed back");
 });

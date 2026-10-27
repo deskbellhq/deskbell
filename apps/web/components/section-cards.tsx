@@ -12,6 +12,8 @@ import Link from "next/link";
 export interface OverviewStats {
   conversations: number;
   conversations7d: number;
+  /** Threads that are uncertain, marked down, or asked for a person or pushed back (spec: attention-inbox). */
+  attention: number;
   questions: number;
   questions7d: number;
   /**
@@ -33,9 +35,11 @@ export function SectionCards({ stats }: { stats: OverviewStats }) {
     {
       label: "Conversations",
       value: String(stats.conversations),
-      badge: `+${stats.conversations7d} this week`,
+      badge: `${stats.attention} need${stats.attention === 1 ? "s" : ""} attention`,
+      // A door, like the gaps count: the inbox lists what asks to be read.
+      href: "/conversations?view=attention",
       headline: "Threads started by visitors",
-      detail: "Grouped by widget session",
+      detail: `+${stats.conversations7d} this week · uncertain, marked down, or asking for a person`,
     },
     {
       label: "Questions asked",

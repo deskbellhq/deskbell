@@ -1,16 +1,15 @@
 import { conversations, messages } from "@deskbell/db";
-import { ATTENTION_SIGNALS } from "@deskbell/shared";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 
-import type {
-  ContextFilter,
-  ConversationsFilter,
-  DayRange,
-  IntentKey,
-  SignalKey,
+import {
+  type ContextFilter,
+  type DayRange,
+  DEFAULT_NARROWING,
+  type Narrowing,
 } from "@/lib/conversations-view";
 import { getDb } from "@/lib/db";
 import { readGapsConfig } from "@/lib/gaps-signal";
+import type { ThreadStatus } from "@/lib/thread-status";
 
 const SNIPPET_CHARS = 120;
 const DEFAULT_LIMIT = 200;
@@ -23,63 +22,63 @@ export interface ConversationListRow {
   snippet: string | null;
   /** ISO timestamp of the latest activity. */
   time: string;
-  /** Any refused or weakly grounded answer in the thread (lib/thread-status.ts). */
-  uncertain: boolean;
+  /** How the thread's answers went: the badge's word (lib/thread-status.ts). */
+  status: ThreadStatus;
   /** Any answer the visitor marked down. */
   downvoted: boolean;
-  /** Any question asking for a person or pushing back on an answer (spec: intent-and-signals). */
-  attention: boolean;
+  /** Any question that asked for a person (spec: intent-and-signals). */
+  wantsHuman: boolean;
+  /** Any question that pushed back on the answer before it. */
+  pushback: boolean;
 }
 
+/** What each quick view of a period would list, uncapped. */
 export interface ConversationCounts {
   all: number;
-  uncertain: number;
-  down: number;
+  /** Uncertain, downvoted, or with a question that asked for a person or pushed back. */
+  attention: number;
 }
 
 export interface ListOptions {
-  filter?: ConversationsFilter;
   /** Inclusive UTC days a thread must have a message in; null for all time. */
   range?: DayRange | null;
-  /** A topic one of the thread's questions was labelled with (spec: question-topics). */
-  topic?: string | null;
-  /** An intent one of the thread's questions was given (spec: intent-and-signals). */
-  intent?: IntentKey | null;
-  /** A signal one of the thread's questions carries. */
-  signal?: SignalKey | null;
-  /** A context key and id the thread must carry (spec: usage-page). */
-  context?: ContextFilter | null;
-  /** The verified visitor who owns the thread (spec: usage-page). */
-  user?: string | null;
   limit?: number;
-}
-
-/** The thread-level narrowing the usage page drills down with. */
-export interface Narrowing {
-  topic: string | null;
-  intent: IntentKey | null;
-  signal: SignalKey | null;
-  context: ContextFilter | null;
-  user: string | null;
 }
 
 /**
  * The per-thread aggregates every list question is asked in terms of: the
- * two booleans of the filter and the message days of the range. One place,
- * so the rows a view lists, the thread it opens and the counts it shows
- * cannot disagree (spec: conversations-inbox-polish, conversations-date-range).
+ * status, the votes, the labels and the message days. One place, so the
+ * rows a view lists, the thread it opens and the counts it shows cannot
+ * disagree (spec: conversations-inbox-polish, conversations-date-range,
+ * attention-inbox).
  */
 function threadAggregates(weakScore: number) {
+  const answerCount = sql`count(*) filter (where ${messages.role} = 'assistant')`;
   const refusalCount = sql`count(*) filter (where ${messages.refused})`;
   const weakCount = sql`count(*) filter (where ${messages.role} = 'assistant' and not ${messages.refused} and not ${messages.clarified} and ${messages.retrievalTopScore} is not null and ${messages.retrievalTopScore} < ${weakScore})`;
   const downCount = sql`count(*) filter (where ${messages.feedback} = 'down')`;
+  const upCount = sql`count(*) filter (where ${messages.feedback} = 'up')`;
   // Named something the documentation does not contain (spec: answer-verification).
   const unsupportedCount = sql`count(*) filter (where coalesce(cardinality(${messages.unsupportedTerms}), 0) > 0)`;
   // The same bucket the Overview chart draws: a message's UTC calendar day.
   const messageDay = sql`to_char(${messages.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
+  const hasSignal = (signal: string) =>
+    sql<boolean>`bool_or(${messages.role} = 'user' and ${signal} = any(${messages.signals}))`;
+  const uncertain = sql<boolean>`(${refusalCount} > 0 or ${weakCount} > 0 or ${unsupportedCount} > 0)`;
+  const unanswered = sql<boolean>`(${answerCount} = 0)`;
+  const down = sql<boolean>`(${downCount} > 0)`;
+  const wantsHuman = hasSignal("wants_human");
+  const pushback = hasSignal("pushback");
   return {
-    uncertain: sql<boolean>`(${refusalCount} > 0 or ${weakCount} > 0 or ${unsupportedCount} > 0)`,
-    down: sql<boolean>`(${downCount} > 0)`,
+    uncertain,
+    unanswered,
+    certain: sql<boolean>`(not ${unanswered} and not ${uncertain})`,
+    down,
+    up: sql<boolean>`(${upCount} > 0)`,
+    wantsHuman,
+    pushback,
+    // What asks to be read: everything the row's colour and glyphs mark (spec: attention-inbox).
+    attention: sql<boolean>`(${uncertain} or ${down} or ${wantsHuman} or ${pushback})`,
     inRange: (range: DayRange) =>
       sql<boolean>`bool_or(${messageDay} between ${range.from} and ${range.to})`,
     lastMessageAt: sql<Date | null>`max(${messages.createdAt})`,
@@ -87,32 +86,23 @@ function threadAggregates(weakScore: number) {
       sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.topic} = ${topic})`,
     hasIntent: (intent: string) =>
       sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.intent} = ${intent})`,
-    hasSignal: (signal: string) =>
-      sql<boolean>`bool_or(${messages.role} = 'user' and ${signal} = any(${messages.signals}))`,
-    // The two signals that ask to be read (spec: intent-and-signals).
-    attention: sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.signals} && ${sql.param([...ATTENTION_SIGNALS])}::text[])`,
+    hasSignal,
   };
-}
-
-/** The labels a thread must carry at least one question of. */
-interface Labels {
-  topic: string | null;
-  intent: IntentKey | null;
-  signal: SignalKey | null;
 }
 
 function having(
   agg: ReturnType<typeof threadAggregates>,
-  filter: ConversationsFilter,
+  narrowing: Narrowing,
   range: DayRange | null,
-  labels: Labels = { topic: null, intent: null, signal: null },
 ) {
   const predicates = [
-    filter === "uncertain" ? agg.uncertain : filter === "down" ? agg.down : null,
+    narrowing.view === "attention" ? agg.attention : null,
+    narrowing.outcome ? agg[narrowing.outcome] : null,
+    narrowing.feedback ? agg[narrowing.feedback] : null,
     range ? agg.inRange(range) : null,
-    labels.topic ? agg.hasTopic(labels.topic) : null,
-    labels.intent ? agg.hasIntent(labels.intent) : null,
-    labels.signal ? agg.hasSignal(labels.signal) : null,
+    narrowing.topic ? agg.hasTopic(narrowing.topic) : null,
+    narrowing.intent ? agg.hasIntent(narrowing.intent) : null,
+    narrowing.signal ? agg.hasSignal(narrowing.signal) : null,
   ].filter((p) => p !== null);
   return predicates.length > 0 ? sql.join(predicates, sql` and `) : undefined;
 }
@@ -140,16 +130,8 @@ function scope(
  */
 export async function listConversations(
   project: { orgId: string; id: string },
-  {
-    filter = "all",
-    range = null,
-    topic = null,
-    intent = null,
-    signal = null,
-    context = null,
-    user = null,
-    limit = DEFAULT_LIMIT,
-  }: ListOptions = {},
+  narrowing: Narrowing,
+  { range = null, limit = DEFAULT_LIMIT }: ListOptions = {},
 ): Promise<ConversationListRow[]> {
   const db = getDb();
   // The same weak floor the gaps page flags on (lib/thread-status.ts).
@@ -169,14 +151,16 @@ export async function listConversations(
       >`(array_agg(${messages.content} order by ${messages.createdAt} desc))[1]`,
       lastMessageAt: agg.lastMessageAt,
       uncertain: agg.uncertain,
+      unanswered: agg.unanswered,
       downvoted: agg.down,
-      attention: agg.attention,
+      wantsHuman: agg.wantsHuman,
+      pushback: agg.pushback,
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(scope(project, context, user))
+    .where(scope(project, narrowing.context, narrowing.user))
     .groupBy(conversations.id)
-    .having(having(agg, filter, range, { topic, intent, signal }))
+    .having(having(agg, narrowing, range))
     // "Newest" is the latest activity: a thread with a fresh follow-up rises.
     .orderBy(desc(sql`coalesce(${agg.lastMessageAt}, ${conversations.createdAt})`))
     .limit(limit);
@@ -187,38 +171,80 @@ export async function listConversations(
     title: row.title ?? row.question ?? "(no user message)",
     snippet: row.lastMessage ? row.lastMessage.slice(0, SNIPPET_CHARS) : null,
     time: new Date(row.lastMessageAt ?? row.createdAt).toISOString(),
-    uncertain: Boolean(row.uncertain),
+    status: row.unanswered ? "unanswered" : row.uncertain ? "uncertain" : "certain",
     downvoted: Boolean(row.downvoted),
-    attention: Boolean(row.attention),
+    wantsHuman: Boolean(row.wantsHuman),
+    pushback: Boolean(row.pushback),
   }));
 }
 
-/** What each filter segment of a period would list, uncapped. */
+/** What each quick view of a period would list, under the same narrowings, uncapped. */
 export async function countConversations(
   project: { orgId: string; id: string },
   range: DayRange | null,
-  narrowing: Narrowing = { topic: null, intent: null, signal: null, context: null, user: null },
+  narrowing: Narrowing = DEFAULT_NARROWING,
 ): Promise<ConversationCounts> {
   const db = getDb();
   const agg = threadAggregates(readGapsConfig().weakScore);
   const threads = db
     .select({
       id: conversations.id,
-      uncertain: agg.uncertain.as("uncertain"),
-      down: agg.down.as("down"),
+      attention: agg.attention.as("attention"),
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
     .where(scope(project, narrowing.context, narrowing.user))
     .groupBy(conversations.id)
-    .having(having(agg, "all", range, narrowing))
+    .having(having(agg, { ...narrowing, view: "all" }, range))
     .as("threads");
   const [row] = await db
     .select({
       all: count(),
-      uncertain: sql`count(*) filter (where ${threads.uncertain})`.mapWith(Number),
-      down: sql`count(*) filter (where ${threads.down})`.mapWith(Number),
+      attention: sql`count(*) filter (where ${threads.attention})`.mapWith(Number),
     })
     .from(threads);
-  return { all: row?.all ?? 0, uncertain: row?.uncertain ?? 0, down: row?.down ?? 0 };
+  return { all: row?.all ?? 0, attention: row?.attention ?? 0 };
+}
+
+/** One context key and the ids seen under it, each with the latest name the host sent. */
+export interface ContextValues {
+  key: string;
+  values: Array<{ id: string; name: string | null }>;
+}
+
+const CONTEXT_VALUES_LIMIT = 50;
+
+/**
+ * What the filter menu can offer for the host's context keys (spec:
+ * attention-inbox): every key any conversation of the project carries and
+ * up to fifty ids under it, most conversations first, named the way the
+ * host last named them. All time, because a filter is picked before a period.
+ */
+export async function loadContextValues(project: {
+  orgId: string;
+  id: string;
+}): Promise<ContextValues[]> {
+  const { rows } = await getDb().execute<{
+    key: string;
+    id: string;
+    name: string | null;
+    n: string;
+  }>(sql`
+    select e.key,
+           e.value ->> 'id' as id,
+           (array_agg(e.value ->> 'name' order by c.created_at desc)
+              filter (where e.value ->> 'name' is not null))[1] as name,
+           count(*) as n
+    from ${conversations} c, jsonb_each(c.context) e
+    where c.org_id = ${project.orgId} and c.project_id = ${project.id}
+      and c.context is not null and e.value ->> 'id' is not null
+    group by e.key, e.value ->> 'id'
+    order by e.key, count(*) desc, 2`);
+  const byKey = new Map<string, ContextValues>();
+  for (const r of rows) {
+    const entry = byKey.get(r.key) ?? { key: r.key, values: [] };
+    if (entry.values.length < CONTEXT_VALUES_LIMIT) entry.values.push({ id: r.id, name: r.name });
+    byKey.set(r.key, entry);
+  }
+  return [...byKey.values()];
 }
