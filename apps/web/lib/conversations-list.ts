@@ -1,7 +1,14 @@
 import { conversations, messages } from "@deskbell/db";
+import { ATTENTION_SIGNALS } from "@deskbell/shared";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 
-import type { ContextFilter, ConversationsFilter, DayRange } from "@/lib/conversations-view";
+import type {
+  ContextFilter,
+  ConversationsFilter,
+  DayRange,
+  IntentKey,
+  SignalKey,
+} from "@/lib/conversations-view";
 import { getDb } from "@/lib/db";
 import { readGapsConfig } from "@/lib/gaps-signal";
 
@@ -20,6 +27,8 @@ export interface ConversationListRow {
   uncertain: boolean;
   /** Any answer the visitor marked down. */
   downvoted: boolean;
+  /** Any question asking for a person or pushing back on an answer (spec: intent-and-signals). */
+  attention: boolean;
 }
 
 export interface ConversationCounts {
@@ -34,6 +43,10 @@ export interface ListOptions {
   range?: DayRange | null;
   /** A topic one of the thread's questions was labelled with (spec: question-topics). */
   topic?: string | null;
+  /** An intent one of the thread's questions was given (spec: intent-and-signals). */
+  intent?: IntentKey | null;
+  /** A signal one of the thread's questions carries. */
+  signal?: SignalKey | null;
   /** A context key and id the thread must carry (spec: usage-page). */
   context?: ContextFilter | null;
   /** The verified visitor who owns the thread (spec: usage-page). */
@@ -44,6 +57,8 @@ export interface ListOptions {
 /** The thread-level narrowing the usage page drills down with. */
 export interface Narrowing {
   topic: string | null;
+  intent: IntentKey | null;
+  signal: SignalKey | null;
   context: ContextFilter | null;
   user: string | null;
 }
@@ -70,19 +85,34 @@ function threadAggregates(weakScore: number) {
     lastMessageAt: sql<Date | null>`max(${messages.createdAt})`,
     hasTopic: (topic: string) =>
       sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.topic} = ${topic})`,
+    hasIntent: (intent: string) =>
+      sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.intent} = ${intent})`,
+    hasSignal: (signal: string) =>
+      sql<boolean>`bool_or(${messages.role} = 'user' and ${signal} = any(${messages.signals}))`,
+    // The two signals that ask to be read (spec: intent-and-signals).
+    attention: sql<boolean>`bool_or(${messages.role} = 'user' and ${messages.signals} && ${sql.param([...ATTENTION_SIGNALS])}::text[])`,
   };
+}
+
+/** The labels a thread must carry at least one question of. */
+interface Labels {
+  topic: string | null;
+  intent: IntentKey | null;
+  signal: SignalKey | null;
 }
 
 function having(
   agg: ReturnType<typeof threadAggregates>,
   filter: ConversationsFilter,
   range: DayRange | null,
-  topic: string | null = null,
+  labels: Labels = { topic: null, intent: null, signal: null },
 ) {
   const predicates = [
     filter === "uncertain" ? agg.uncertain : filter === "down" ? agg.down : null,
     range ? agg.inRange(range) : null,
-    topic ? agg.hasTopic(topic) : null,
+    labels.topic ? agg.hasTopic(labels.topic) : null,
+    labels.intent ? agg.hasIntent(labels.intent) : null,
+    labels.signal ? agg.hasSignal(labels.signal) : null,
   ].filter((p) => p !== null);
   return predicates.length > 0 ? sql.join(predicates, sql` and `) : undefined;
 }
@@ -114,6 +144,8 @@ export async function listConversations(
     filter = "all",
     range = null,
     topic = null,
+    intent = null,
+    signal = null,
     context = null,
     user = null,
     limit = DEFAULT_LIMIT,
@@ -138,12 +170,13 @@ export async function listConversations(
       lastMessageAt: agg.lastMessageAt,
       uncertain: agg.uncertain,
       downvoted: agg.down,
+      attention: agg.attention,
     })
     .from(conversations)
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
     .where(scope(project, context, user))
     .groupBy(conversations.id)
-    .having(having(agg, filter, range, topic))
+    .having(having(agg, filter, range, { topic, intent, signal }))
     // "Newest" is the latest activity: a thread with a fresh follow-up rises.
     .orderBy(desc(sql`coalesce(${agg.lastMessageAt}, ${conversations.createdAt})`))
     .limit(limit);
@@ -156,6 +189,7 @@ export async function listConversations(
     time: new Date(row.lastMessageAt ?? row.createdAt).toISOString(),
     uncertain: Boolean(row.uncertain),
     downvoted: Boolean(row.downvoted),
+    attention: Boolean(row.attention),
   }));
 }
 
@@ -163,7 +197,7 @@ export async function listConversations(
 export async function countConversations(
   project: { orgId: string; id: string },
   range: DayRange | null,
-  narrowing: Narrowing = { topic: null, context: null, user: null },
+  narrowing: Narrowing = { topic: null, intent: null, signal: null, context: null, user: null },
 ): Promise<ConversationCounts> {
   const db = getDb();
   const agg = threadAggregates(readGapsConfig().weakScore);
@@ -177,7 +211,7 @@ export async function countConversations(
     .leftJoin(messages, eq(messages.conversationId, conversations.id))
     .where(scope(project, narrowing.context, narrowing.user))
     .groupBy(conversations.id)
-    .having(having(agg, "all", range, narrowing.topic))
+    .having(having(agg, "all", range, narrowing))
     .as("threads");
   const [row] = await db
     .select({

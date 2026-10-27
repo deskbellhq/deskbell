@@ -82,12 +82,14 @@ export const WIDGET = {
 } as const;
 
 /**
- * The usage suite (spec: usage-page, question-topics): anonymous threads
- * carrying a `user_type` and an `account` context, their questions labelled
- * with the project's two topics. Session 1 asks on two different days, so it
- * is the one returning visitor among customers. Dates are offsets from now,
- * all inside the last seven days and all older than B's thread, which the
- * Conversations page expects to find newest.
+ * The usage suite (spec: usage-page, question-topics, intent-and-signals):
+ * anonymous threads carrying a `user_type` and an `account` context, their
+ * questions labelled with the project's two topics, an intent and signals.
+ * Session 1 asks on two different days, so it is the one returning visitor
+ * among customers. Dates are offsets from now, all inside the last seven
+ * days and all older than B's thread, which the Conversations page expects
+ * to find newest. A question is [text, topic, intent, signals]; the last
+ * one is not yet labelled.
  */
 export const USAGE = {
   topics: [
@@ -107,8 +109,8 @@ export const USAGE = {
       account: "acme",
       day: 1,
       questions: [
-        ["How are invoices issued?", "billing"],
-        ["Can I pay by card?", "billing"],
+        ["How are invoices issued?", "billing", "how_to", []],
+        ["Can I pay by card?", "billing", "lookup", []],
       ],
     },
     {
@@ -117,7 +119,7 @@ export const USAGE = {
       userType: "customer",
       account: "acme",
       day: 3,
-      questions: [["Can I export to CSV?", "exports"]],
+      questions: [["Can I export to CSV?", "exports", "request", ["wants_human"]]],
     },
     {
       id: "conv_e2e_u3",
@@ -126,8 +128,8 @@ export const USAGE = {
       account: "globex",
       day: 2,
       questions: [
-        ["How do I schedule an export?", "exports"],
-        ["Where is my invoice?", "billing"],
+        ["How do I schedule an export?", "exports", "how_to", []],
+        ["Where is my invoice?", "billing", "troubleshooting", ["pushback", "frustration"]],
       ],
     },
     {
@@ -137,8 +139,8 @@ export const USAGE = {
       account: "initech",
       day: 4,
       questions: [
-        ["What is the weather like?", "other"],
-        ["Is this labelled yet?", null],
+        ["What is the weather like?", "other", "off_topic", []],
+        ["Is this labelled yet?", null, null, null],
       ],
     },
   ],
@@ -313,7 +315,7 @@ export async function seedBrowserSuite(now: Date = new Date()): Promise<void> {
       ]);
     }
 
-    // Usage threads (spec: usage-page): anonymous, with context and topic labels.
+    // Usage threads (spec: usage-page): anonymous, with context, topic, intent and signals.
     for (const t of USAGE.threads) {
       const at = daysAgo(t.day, now);
       const account = USAGE.accounts[t.account];
@@ -328,7 +330,7 @@ export async function seedBrowserSuite(now: Date = new Date()): Promise<void> {
         updatedAt: at,
       });
       await db.insert(messages).values(
-        t.questions.flatMap(([question, topic], i) => {
+        t.questions.flatMap(([question, topic, intent, signals], i) => {
           const asked = new Date(at.getTime() + i * 60_000);
           return [
             {
@@ -338,6 +340,8 @@ export async function seedBrowserSuite(now: Date = new Date()): Promise<void> {
               role: "user" as const,
               content: question,
               topic,
+              intent,
+              signals: signals ? [...signals] : null,
               createdAt: asked,
               updatedAt: asked,
             },

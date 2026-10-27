@@ -34,6 +34,13 @@ describe("runTopicsCatchup", () => {
     expect(summary).toEqual({ projects: 2, labelled: 1, budget: 1 });
   });
 
+  it("ends a project's run when its switch turned off", async () => {
+    const f = fake({ p1: ["a", "b"], p2: ["c"] }, (id) => (id === "a" ? "off" : "labelled"));
+    const summary = await runTopicsCatchup(f.deps, {});
+    expect(f.classified).toEqual(["a", "c"]);
+    expect(summary).toEqual({ projects: 2, labelled: 1, budget: 0 });
+  });
+
   it("runs for one project when the job names it", async () => {
     const f = fake({ p1: ["a"], p2: ["b"] }, () => "labelled");
     await runTopicsCatchup(f.deps, { orgId: "org", projectId: "p2" });

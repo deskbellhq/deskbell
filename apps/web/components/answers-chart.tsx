@@ -122,6 +122,8 @@ export function AnswersChart({ data }: { data: ChartPoint[] }) {
             from: date,
             to: date,
             topic: null,
+            intent: null,
+            signal: null,
             context: null,
             user: null,
           }),

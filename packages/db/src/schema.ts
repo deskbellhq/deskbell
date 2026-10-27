@@ -161,6 +161,13 @@ export const projects = pgTable(
      */
     topics: jsonb("topics").$type<ProjectTopics>().notNull().default([]),
     /**
+     * Whether the worker labels each visitor question with a topic, an
+     * intent and signals (spec: intent-and-signals): one short model call
+     * per question, off the visitor's path. The one switch for all three;
+     * off means no call and no labels.
+     */
+    classifyQuestions: boolean("classify_questions").notNull().default(true),
+    /**
      * First-run checklist dismissed (spec: single-tag-embed-deploy-onboarding).
      * The steps themselves are derived from live rows, never stored.
      */
@@ -628,6 +635,14 @@ export const messages = pgTable(
      * until the worker runs, or forever when the project has no topics.
      */
     topic: text("topic"),
+    /**
+     * Why the visitor asked (spec: intent-and-signals): one key from the
+     * fixed INTENTS list. Null until the worker runs; "labelled" means this
+     * is set, since a topic is null on a project without a topic list.
+     */
+    intent: text("intent"),
+    /** How it went for them: keys from the fixed SIGNALS list, usually none. Null until labelled. */
+    signals: text("signals").array(),
     ...timestamps,
   },
   (t) => [
@@ -641,10 +656,11 @@ export const messages = pgTable(
     index("messages_gap_idx")
       .on(t.conversationId, t.createdAt)
       .where(sql`role = 'assistant' and (refused or feedback = 'down')`),
-    // The questions the topic catch-up still has to label.
-    index("messages_topic_pending_idx")
+    // The questions the hourly catch-up still has to label: never labelled,
+    // or labelled before the project named topics.
+    index("messages_classify_pending_idx")
       .on(t.conversationId, t.createdAt)
-      .where(sql`role = 'user' and topic is null`),
+      .where(sql`role = 'user' and (intent is null or topic is null)`),
   ],
 );
 

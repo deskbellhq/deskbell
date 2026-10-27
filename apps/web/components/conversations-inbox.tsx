@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@deskbell/ui/components/select";
 import { cn } from "@deskbell/ui/lib/utils";
-import { X } from "lucide-react";
+import { MessageSquareWarning, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useId, useState } from "react";
@@ -77,20 +77,32 @@ export function InboxList({
   rows,
   counts,
   view,
-  labels = { topic: null, context: null, user: null },
+  labels = { topic: null, intent: null, signal: null, context: null, user: null },
 }: {
   rows: InboxItem[];
   /** What each filter segment of this period would list. */
   counts: ConversationCounts;
   view: ConversationsView;
-  /** What the view's topic, context and visitor narrowing are called, when set. */
-  labels?: { topic: string | null; context: string | null; user: string | null };
+  /** What the view's topic, intent, signal, context and visitor narrowing are called, when set. */
+  labels?: {
+    topic: string | null;
+    intent: string | null;
+    signal: string | null;
+    context: string | null;
+    user: string | null;
+  };
 }) {
   const pathname = usePathname();
   const threadOpen = pathname !== "/conversations";
   const chips = [
     view.topic
       ? { name: "Topic", value: labels.topic ?? view.topic, clear: { topic: null } }
+      : null,
+    view.intent
+      ? { name: "Intent", value: labels.intent ?? view.intent, clear: { intent: null } }
+      : null,
+    view.signal
+      ? { name: "Signal", value: labels.signal ?? view.signal, clear: { signal: null } }
       : null,
     view.context
       ? {
@@ -195,12 +207,20 @@ export function InboxList({
                   >
                     {relativeTime(item.time)}
                   </span>
-                  {item.uncertain ? (
-                    <span
-                      className="size-2 rounded-full bg-uncertain"
-                      title="Contains an uncertain answer — refused or weakly grounded"
-                    />
-                  ) : null}
+                  <span className="flex items-center gap-1.5">
+                    {item.attention ? (
+                      <MessageSquareWarning
+                        className="size-3 text-muted-foreground"
+                        aria-label="A visitor asked for a person or pushed back on an answer"
+                      />
+                    ) : null}
+                    {item.uncertain ? (
+                      <span
+                        className="size-2 rounded-full bg-uncertain"
+                        title="Contains an uncertain answer — refused or weakly grounded"
+                      />
+                    ) : null}
+                  </span>
                 </span>
               </Link>
             );

@@ -749,16 +749,21 @@ export function createConversationTitlerDeps(
 export type { ConversationTitler } from "./conversation-titler";
 
 /**
- * The question classifier for the worker (spec: question-topics). Same
- * shape as the titler: built for the worker, never on the answer path,
- * model constructed on first use.
+ * The question classifier for the worker (spec: question-topics,
+ * intent-and-signals). Same shape as the titler: built for the worker,
+ * never on the answer path, model constructed on first use.
  */
 export function createQuestionClassifierDeps(
   env: NodeJS.ProcessEnv = process.env,
 ): QuestionClassifier {
   return createQuestionClassifier(languageModel, chatModelId(env));
 }
-export type { ClassifierInput, QuestionClassifier, TopicChoice } from "./question-classifier";
+export type {
+  Classification,
+  ClassifierInput,
+  QuestionClassifier,
+  TopicChoice,
+} from "./question-classifier";
 
 /**
  * The feedback summarizer for the worker (spec: project-notifications).

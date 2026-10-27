@@ -5,6 +5,9 @@
  * the Overview chart agree on what a view is called.
  *
  * Import-free, like ./gaps-view: the inbox controls are client components.
+ * The intent and signal keys are repeated here for that reason; the shared
+ * package's lists are the source, and `conversations-view.test.ts` checks
+ * the two agree.
  */
 
 export type ConversationsFilter = "all" | "uncertain" | "down";
@@ -50,6 +53,10 @@ export interface ConversationsView {
   to: string | null;
   /** Threads with a question labelled with this topic key (spec: question-topics); null for any. */
   topic: string | null;
+  /** Threads with a question of this intent (spec: intent-and-signals); null for any. */
+  intent: IntentKey | null;
+  /** Threads with a question carrying this signal; null for any. */
+  signal: SignalKey | null;
   /** Threads whose context carries this key with this id; null for any. */
   context: ContextFilter | null;
   /** Threads owned by this verified visitor (`end_users.id`); null for any. */
@@ -62,9 +69,24 @@ export const DEFAULT_VIEW: ConversationsView = {
   from: null,
   to: null,
   topic: null,
+  intent: null,
+  signal: null,
   context: null,
   user: null,
 };
+
+/** The fixed lists the worker writes, spelled as `@deskbell/shared` spells them. */
+export const INTENT_KEYS = [
+  "how_to",
+  "troubleshooting",
+  "lookup",
+  "request",
+  "off_topic",
+  "other",
+] as const;
+export type IntentKey = (typeof INTENT_KEYS)[number];
+export const SIGNAL_KEYS = ["pushback", "frustration", "wants_human"] as const;
+export type SignalKey = (typeof SIGNAL_KEYS)[number];
 
 /** The usage page's spellings: a topic key, and a context key as the widget's schema states it. */
 const TOPIC_KEY = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -105,21 +127,35 @@ export function parseDay(value: Param): string | null {
  */
 export function parseView(params: Record<string, Param>): ConversationsView {
   const filter = parseFilter(params.filter);
-  const topic = parseTopic(params.topic);
-  const context = parseContext(params);
-  const user = parseUser(params.user);
+  const narrowing = {
+    topic: parseTopic(params.topic),
+    intent: parseIntent(params.intent),
+    signal: parseSignal(params.signal),
+    context: parseContext(params),
+    user: parseUser(params.user),
+  };
   const period = first(params.period);
   if ((RELATIVE_PERIODS as readonly string[]).includes(period ?? "")) {
-    return { filter, period: period as PeriodKey, from: null, to: null, topic, context, user };
+    return { filter, period: period as PeriodKey, from: null, to: null, ...narrowing };
   }
   const from = parseDay(params.from);
   const to = parseDay(params.to);
   if (from && to) {
     return from <= to
-      ? { filter, period: "custom", from, to, topic, context, user }
-      : { filter, period: "custom", from: to, to: from, topic, context, user };
+      ? { filter, period: "custom", from, to, ...narrowing }
+      : { filter, period: "custom", from: to, to: from, ...narrowing };
   }
-  return { filter, period: DEFAULT_PERIOD, from: null, to: null, topic, context, user };
+  return { filter, period: DEFAULT_PERIOD, from: null, to: null, ...narrowing };
+}
+
+function parseIntent(value: Param): IntentKey | null {
+  const v = first(value);
+  return (INTENT_KEYS as readonly string[]).includes(v ?? "") ? (v as IntentKey) : null;
+}
+
+function parseSignal(value: Param): SignalKey | null {
+  const v = first(value);
+  return (SIGNAL_KEYS as readonly string[]).includes(v ?? "") ? (v as SignalKey) : null;
 }
 
 function parseTopic(value: Param): string | null {
@@ -154,6 +190,8 @@ export function conversationsHref(pathname: string, view: ConversationsView): st
     params.set("period", view.period);
   }
   if (view.topic) params.set("topic", view.topic);
+  if (view.intent) params.set("intent", view.intent);
+  if (view.signal) params.set("signal", view.signal);
   if (view.context) params.set(`${CONTEXT_PREFIX}${view.context.key}`, view.context.id);
   if (view.user) params.set("user", view.user);
   const query = params.toString();

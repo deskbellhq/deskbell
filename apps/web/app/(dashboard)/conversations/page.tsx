@@ -24,6 +24,8 @@ export default async function ConversationsIndexPage({
     filter: view.filter,
     range: resolveRange(view, todayUtc()),
     topic: view.topic,
+    intent: view.intent,
+    signal: view.signal,
     context: view.context,
     user: view.user,
     limit: 1,

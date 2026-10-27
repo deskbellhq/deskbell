@@ -1,4 +1,14 @@
-import { OTHER_TOPIC, topicName } from "@deskbell/shared";
+import {
+  INTENT_INFO,
+  intentName,
+  isIntent,
+  isSignal,
+  OTHER_INTENT,
+  OTHER_TOPIC,
+  SIGNAL_INFO,
+  signalName,
+  topicName,
+} from "@deskbell/shared";
 import { Badge } from "@deskbell/ui/components/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@deskbell/ui/components/card";
 import {
@@ -9,24 +19,27 @@ import {
   TableHeader,
   TableRow,
 } from "@deskbell/ui/components/table";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/page-header";
 import { SiteHeader } from "@/components/site-header";
 import { UsageChart } from "@/components/usage-chart";
 import { Hint, HintBadge, ShowAll } from "@/components/usage-hint";
+import { Bar, LabelTable, seriesColor } from "@/components/usage-label-table";
 import { UsageToolbar } from "@/components/usage-toolbar";
 import { requireMember } from "@/lib/auth/session";
-import { conversationsHref } from "@/lib/conversations-view";
+import { type ConversationsView, conversationsHref } from "@/lib/conversations-view";
 import { getDb } from "@/lib/db";
 import { resolvePeriod } from "@/lib/gaps";
 import { relativeTime } from "@/lib/inbox";
 import { getDefaultProject } from "@/lib/org";
 import {
   chartRange,
+  composition,
   deltaLabel,
   foldTotals,
+  type LabelRow,
+  labelRows,
   NO_SEGMENT,
   POWER_USER_DAYS,
   percent,
@@ -94,86 +107,81 @@ export default async function UsagePage({
   const chart = zeroFilledDays(data.days, chartRange(period.from, now), segments);
   const hasQuestions = (sum(totals, "questions") ?? 0) > 0;
 
-  // Topics: one row per label, folded segments as columns, delta on the total.
-  const topics = new Map<
-    string | null,
-    { questions: number; conversations: number; perSegment: Map<string, number> }
-  >();
-  for (const row of data.topics) {
-    const entry = topics.get(row.topic) ?? {
-      questions: 0,
-      conversations: 0,
-      perSegment: new Map(),
-    };
-    entry.questions += row.questions;
-    entry.conversations += row.conversations;
-    const id = segments.some((s) => s.id === row.segment) ? row.segment : "__other__";
-    entry.perSegment.set(id, (entry.perSegment.get(id) ?? 0) + row.questions);
-    topics.set(row.topic, entry);
-  }
-  const previousTopics = new Map(data.previousTopics?.map((t) => [t.topic, t.questions]) ?? []);
-  const topicRows = [...topics.entries()]
-    .map(([topic, t]) => ({ topic, ...t }))
-    // Labelled first by size; the unlabelled row and Other sink to the bottom.
-    .sort((a, b) => {
-      const rank = (t: string | null) => (t === null ? 2 : t === OTHER_TOPIC ? 1 : 0);
-      return rank(a.topic) - rank(b.topic) || b.questions - a.questions;
+  // One door for every label: the Conversations page narrowed to it, keeping
+  // the period and the first context filter.
+  const door = (narrowing: Partial<ConversationsView>) =>
+    conversationsHref("/conversations", {
+      filter: "all",
+      period: view.period,
+      from: null,
+      to: null,
+      topic: null,
+      intent: null,
+      signal: null,
+      context: view.filters[0] ?? null,
+      user: null,
+      ...narrowing,
     });
-  const topicMax = Math.max(0, ...topicRows.map((t) => t.questions));
+
+  // Topics, intents and signals: the same table over three label lists
+  // (spec: question-topics, intent-and-signals). Shares are of every question
+  // in the period, so a column adds up to 100 and a signal's share reads as
+  // "this many of all questions".
+  const topicRows = labelRows(
+    data.topics.map((r) => ({ key: r.topic, ...r })),
+    segments,
+    data.previousTopics?.map((t) => ({ key: t.topic, questions: t.questions })) ?? null,
+    OTHER_TOPIC,
+  );
+  const intentRows = labelRows(data.intents, segments, data.previousIntents, OTHER_INTENT);
+  const signalRows = labelRows(data.signals, segments, data.previousSignals, null);
+  const questionTotal = sum(totals, "questions") ?? 0;
   const topicTotal = topicRows.reduce((n, t) => n + t.questions, 0);
+  const named = (rows: LabelRow[], bucket: string) =>
+    rows.filter((r) => r.key !== null && r.key !== bucket);
 
   // One sentence per table that says what the numbers mean, so the reader
   // does not have to find it: the leader, and what moved most.
-  const named = topicRows.filter((t) => t.topic !== null && t.topic !== OTHER_TOPIC);
-  const leader = named[0];
+  const namedTopics = named(topicRows, OTHER_TOPIC);
+  const leader = namedTopics[0];
   const mover = previous
-    ? named
-        .map((t) => ({ t, gain: t.questions - (previousTopics.get(t.topic) ?? 0) }))
+    ? namedTopics
+        .map((t) => ({ t, gain: t.questions - (t.before ?? 0) }))
         .sort((a, b) => b.gain - a.gain)[0]
     : null;
   const lead = leader
-    ? `${topicName(project.topics, leader.topic ?? "")} leads with ${percent(leader.questions, topicTotal) ?? 0}% of questions`
+    ? `${topicName(project.topics, leader.key ?? "")} leads with ${percent(leader.questions, topicTotal) ?? 0}% of questions`
     : null;
   const topicsReading =
     project.topics.length > 0 && lead
       ? !mover || mover.gain <= 0
         ? `${lead}.`
-        : mover.t.topic === leader?.topic
+        : mover.t.key === leader?.key
           ? `${lead} and grew most (+${mover.gain}).`
-          : `${lead}; ${topicName(project.topics, mover.t.topic ?? "")} grew most (+${mover.gain}).`
+          : `${lead}; ${topicName(project.topics, mover.t.key ?? "")} grew most (+${mover.gain}).`
       : null;
-  // The share as a picture: the five largest named topics in the series
-  // colours, everything else in one muted segment. Only when the page is
-  // not split — split rows already wear the series colours per segment.
-  const topFive = named.slice(0, 5);
-  const topicColor = new Map(topFive.map((t, i) => [t.topic, seriesColor(i)]));
-  const shown = topFive.reduce((n, t) => n + t.questions, 0);
-  const composition =
-    !view.split && topicTotal > 0
-      ? [
-          ...topFive.map((t) => ({
-            key: t.topic ?? "",
-            label: topicName(project.topics, t.topic ?? ""),
-            share: percent(t.questions, topicTotal) ?? 0,
-            color: topicColor.get(t.topic) ?? MUTED,
-            muted: false,
-          })),
-          ...(topicTotal > shown
-            ? [
-                {
-                  key: "__rest__",
-                  label:
-                    named.length > 5
-                      ? "Other topics, Other and unlabelled"
-                      : "Other and unlabelled",
-                  share: percent(topicTotal - shown, topicTotal) ?? 0,
-                  color: MUTED,
-                  muted: true,
-                },
-              ]
-            : []),
-        ]
+
+  // Intent: the leader, and the share of requests — the one intent that is a
+  // product signal rather than a documentation one.
+  const namedIntents = named(intentRows, OTHER_INTENT);
+  const intentLeader = namedIntents[0];
+  const requests = intentRows.find((r) => r.key === "request")?.questions ?? 0;
+  const intentReading = intentLeader
+    ? `${intentName(intentLeader.key ?? "")} leads with ${percent(intentLeader.questions, questionTotal) ?? 0}% of questions; ${requests === 0 ? "none asked" : `${percent(requests, questionTotal) ?? 0}% asked`} for something the product does not do.`
+    : null;
+  // Signals: the largest one, or the fact that there were none.
+  const signalLeader = signalRows[0];
+  const signalsReading = signalLeader
+    ? `${signalName(signalLeader.key ?? "")} is the most common signal: ${signalLeader.questions} ${signalLeader.questions === 1 ? "question" : "questions"}, ${percent(signalLeader.questions, questionTotal) ?? 0}% of all.`
+    : questionTotal > 0
+      ? "No question carried a signal."
       : null;
+  const labelled = intentRows.some((r) => r.key !== null);
+
+  const topicsComposition = !view.split ? composition(topicRows, topicTotal, OTHER_TOPIC) : null;
+  const intentComposition = !view.split
+    ? composition(intentRows, questionTotal, OTHER_INTENT)
+    : null;
   const top = data.visitors[0];
   const visitorsReading = top
     ? `${top.label} asks most (${top.questions} ${top.questions === 1 ? "question" : "questions"}); ${data.powerUsers} of ${data.identifiedVisitors} signed-in ${data.identifiedVisitors === 1 ? "visitor is a power user" : "visitors are power users"}, asking on ${POWER_USER_DAYS} or more days.`
@@ -452,15 +460,7 @@ export default async function UsagePage({
                       >
                         <TableCell>
                           <Link
-                            href={conversationsHref("/conversations", {
-                              filter: "all",
-                              period: view.period,
-                              from: null,
-                              to: null,
-                              topic: null,
-                              context: view.filters[0] ?? null,
-                              user: row.id,
-                            })}
+                            href={door({ user: row.id })}
                             className="font-medium underline-offset-4 hover:underline"
                           >
                             {row.label}
@@ -509,35 +509,6 @@ export default async function UsagePage({
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-medium">Topics</h2>
           {topicsReading ? <p className="text-sm text-muted-foreground">{topicsReading}</p> : null}
-          {composition ? (
-            <div className="flex flex-col gap-1.5 py-1">
-              <div aria-hidden className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full">
-                {composition.map((c) => (
-                  <div
-                    key={c.key}
-                    className={c.muted ? "h-full opacity-40" : "h-full"}
-                    style={{ width: `${c.share}%`, backgroundColor: c.color }}
-                  />
-                ))}
-              </div>
-              <ul
-                aria-label="Share of questions"
-                className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
-              >
-                {composition.map((c) => (
-                  <li key={c.key} className="inline-flex items-center gap-1.5">
-                    <span
-                      aria-hidden
-                      className={c.muted ? "size-2 rounded-full opacity-40" : "size-2 rounded-full"}
-                      style={{ backgroundColor: c.color }}
-                    />
-                    <span className="text-muted-foreground">{c.label}</span>
-                    <span className="tabular-nums">{c.share}%</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
           {project.topics.length === 0 ? (
             <Card>
               <CardHeader>
@@ -561,158 +532,154 @@ export default async function UsagePage({
               </CardHeader>
             </Card>
           ) : (
-            <div className="overflow-hidden rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <Hint hint="The label the chat model gave each question, from the list under Settings › Topics. Hover a topic for its description.">
-                        Topic
-                      </Hint>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <Hint
-                        hint={
-                          view.split
-                            ? "Visitor questions labelled with this topic in the period. The bar scales to the largest topic and stacks per series in the chart's colours."
-                            : "Visitor questions labelled with this topic in the period. The bar scales to the largest topic."
-                        }
-                      >
-                        Questions
-                      </Hint>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <Hint hint="This topic's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.">
-                        Share
-                      </Hint>
-                    </TableHead>
-                    {previous ? (
-                      <TableHead className="hidden text-right sm:table-cell">
-                        <Hint
-                          hint={`Questions gained or lost against the ${PERIOD_LABEL[view.period]} before this period.`}
-                        >
-                          vs previous
-                        </Hint>
-                      </TableHead>
-                    ) : null}
-                    <TableHead className="text-right">
-                      <Hint hint="Threads with at least one question on this topic in the period.">
-                        Conversations
-                      </Hint>
-                    </TableHead>
-                    {view.split
-                      ? segments.map((s) => (
-                          <TableHead key={s.id} className="hidden text-right lg:table-cell">
-                            {s.label}
-                          </TableHead>
-                        ))
-                      : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topicRows.map((row) => (
-                    <TableRow key={row.topic ?? "__unlabelled__"}>
-                      <TableCell>
-                        {row.topic === null ? (
-                          <span className="text-muted-foreground">Not yet labelled</span>
-                        ) : (
-                          <Link
-                            href={conversationsHref("/conversations", {
-                              filter: "all",
-                              period: view.period,
-                              from: null,
-                              to: null,
-                              topic: row.topic,
-                              context: view.filters[0] ?? null,
-                              user: null,
-                            })}
-                            title={project.topics.find((t) => t.key === row.topic)?.description}
-                            className="inline-flex items-center gap-2 font-medium underline-offset-4 hover:underline"
-                          >
-                            {composition ? (
-                              <span
-                                aria-hidden
-                                className={
-                                  topicColor.has(row.topic)
-                                    ? "size-2 shrink-0 rounded-full"
-                                    : "size-2 shrink-0 rounded-full opacity-40"
-                                }
-                                style={{ backgroundColor: topicColor.get(row.topic) ?? MUTED }}
-                              />
-                            ) : null}
-                            {topicName(project.topics, row.topic)}
-                          </Link>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Bar
-                          parts={
-                            row.topic === null
-                              ? [{ key: "all", value: row.questions, color: MUTED }]
-                              : view.split
-                                ? [
-                                    ...segments.map((s, i) => ({
-                                      key: s.id,
-                                      value: row.perSegment.get(s.id) ?? 0,
-                                      color: seriesColor(i),
-                                    })),
-                                    {
-                                      key: "__other__",
-                                      value: row.perSegment.get("__other__") ?? 0,
-                                      color: MUTED,
-                                    },
-                                  ]
-                                : [
-                                    {
-                                      key: "all",
-                                      value: row.questions,
-                                      // The topic's own colour when the composition bar names it.
-                                      color: composition
-                                        ? (topicColor.get(row.topic) ?? MUTED_SOFT)
-                                        : seriesColor(0),
-                                    },
-                                  ]
-                          }
-                          max={topicMax}
-                          total={row.questions}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {percent(row.questions, topicTotal) ?? 0}%
-                      </TableCell>
-                      {previous ? (
-                        <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                          <Delta now={row.questions} before={previousTopics.get(row.topic) ?? 0} />
-                        </TableCell>
-                      ) : null}
-                      <TableCell className="text-right tabular-nums">{row.conversations}</TableCell>
-                      {view.split
-                        ? segments.map((s) => (
-                            <TableCell
-                              key={s.id}
-                              className="hidden text-right text-muted-foreground tabular-nums lg:table-cell"
-                            >
-                              {row.perSegment.get(s.id) ?? 0}
-                            </TableCell>
-                          ))
-                        : null}
-                    </TableRow>
-                  ))}
-                  {topicRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5 + segments.length}
-                        className="py-8 text-center text-muted-foreground"
-                      >
-                        No questions {PERIOD_SPAN[view.period]}.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </div>
+            <LabelTable
+              rows={topicRows}
+              total={topicTotal}
+              segments={segments}
+              split={Boolean(view.split)}
+              previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+              present={(key) => ({
+                name: topicName(project.topics, key),
+                description: project.topics.find((t) => t.key === key)?.description,
+                href: door({ topic: key }),
+              })}
+              composition={topicsComposition}
+              hints={{
+                column: "Topic",
+                label:
+                  "The label the chat model gave each question, from the list under Settings › Topics. Hover a topic for its description.",
+                questions: view.split
+                  ? "Visitor questions labelled with this topic in the period. The bar scales to the largest topic and stacks per series in the chart's colours."
+                  : "Visitor questions labelled with this topic in the period. The bar scales to the largest topic.",
+                share:
+                  "This topic's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
+                conversations: "Threads with at least one question on this topic in the period.",
+                rest:
+                  namedTopics.length > 5
+                    ? "Other topics, Other and unlabelled"
+                    : "Other and unlabelled",
+              }}
+              emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
+            />
           )}
         </section>
+
+        {!project.classifyQuestions && !labelled ? (
+          <section className="flex flex-col gap-2">
+            <h2 className="text-sm font-medium">Intent and signals</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Questions are not labelled</CardTitle>
+                <CardDescription>
+                  {canConfigure ? (
+                    <>
+                      Labelling is switched off under{" "}
+                      <Link href="/settings/topics" className="underline underline-offset-4">
+                        Settings › Topics
+                      </Link>
+                      . Switch it on and each question gets an intent and signals as it comes in.
+                    </>
+                  ) : (
+                    <>
+                      An admin can switch labelling on under Settings › Topics; each question then
+                      gets an intent and signals as it comes in.
+                    </>
+                  )}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </section>
+        ) : (
+          <>
+            <section className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium">
+                Intent
+                <span className="ml-2 font-normal text-muted-foreground">
+                  <Hint hint="Why the visitor asked, one of six fixed intents the chat model picks for every question. Hover an intent for its rule.">
+                    why they asked
+                  </Hint>
+                </span>
+              </h2>
+              {intentReading ? (
+                <p className="text-sm text-muted-foreground">{intentReading}</p>
+              ) : null}
+              <LabelTable
+                rows={intentRows}
+                total={questionTotal}
+                segments={segments}
+                split={Boolean(view.split)}
+                previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+                present={(key) => ({
+                  name: intentName(key),
+                  description: isIntent(key) ? INTENT_INFO[key].description : undefined,
+                  href: isIntent(key) ? door({ intent: key }) : null,
+                })}
+                composition={intentComposition}
+                hints={{
+                  column: "Intent",
+                  label:
+                    "Why the visitor asked, as the chat model read it: one of six fixed intents. Hover an intent for its rule.",
+                  questions: view.split
+                    ? "Visitor questions with this intent in the period. The bar scales to the largest intent and stacks per series in the chart's colours."
+                    : "Visitor questions with this intent in the period. The bar scales to the largest intent.",
+                  share:
+                    "This intent's percentage of every question in the period, including Other and the not-yet-labelled ones, so the column adds up to 100.",
+                  conversations: "Threads with at least one question of this intent in the period.",
+                  rest:
+                    namedIntents.length > 5
+                      ? "Other intents, Other and unlabelled"
+                      : "Other and unlabelled",
+                }}
+                emptyText={`No questions ${PERIOD_SPAN[view.period]}.`}
+              />
+            </section>
+
+            <section className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium">
+                Signals
+                <span className="ml-2 font-normal text-muted-foreground">
+                  <Hint hint="How it went for the visitor: pushback against the previous answer, frustration, or asking for a person. A question can carry several, and most carry none.">
+                    how it went
+                  </Hint>
+                </span>
+              </h2>
+              {signalsReading ? (
+                <p className="text-sm text-muted-foreground">{signalsReading}</p>
+              ) : null}
+              <LabelTable
+                rows={signalRows}
+                total={questionTotal}
+                segments={segments}
+                split={Boolean(view.split)}
+                previousLabel={previous ? PERIOD_LABEL[view.period] : null}
+                present={(key) => ({
+                  name: signalName(key),
+                  description: isSignal(key) ? SIGNAL_INFO[key].description : undefined,
+                  href: isSignal(key) ? door({ signal: key }) : null,
+                })}
+                composition={null}
+                hints={{
+                  column: "Signal",
+                  label:
+                    "What the chat model noticed about how the question went: one of three fixed signals. Hover a signal for its rule.",
+                  questions: view.split
+                    ? "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal and stacks per series."
+                    : "Visitor questions carrying this signal in the period. A question with two signals counts under both. The bar scales to the largest signal.",
+                  share:
+                    "The percentage of every question in the period that carried this signal. Most questions carry none, so the column does not add up to 100.",
+                  conversations:
+                    "Threads with at least one question carrying this signal in the period.",
+                  rest: "",
+                }}
+                emptyText={
+                  questionTotal > 0
+                    ? `No question ${PERIOD_SPAN[view.period]} carried a signal.`
+                    : `No questions ${PERIOD_SPAN[view.period]}.`
+                }
+              />
+            </section>
+          </>
+        )}
       </div>
     </>
   );
@@ -734,65 +701,3 @@ const PERIOD_SPAN: Record<UsageView["period"], string> = {
   "90d": "in the last 90 days",
   all: "yet",
 };
-
-/**
- * A number with its share of the column's largest value drawn beside it, so
- * a ranked table reads as a bar chart: one hue for one series, and the
- * chart's series colours, stacked with a surface gap, when the page is split.
- */
-function Bar({
-  parts,
-  max,
-  total,
-}: {
-  parts: Array<{ key: string; value: number; color: string }>;
-  max: number;
-  total: number;
-}) {
-  const scale = max > 0 ? 100 / max : 0;
-  return (
-    <div className="flex items-center justify-end gap-3">
-      <div
-        aria-hidden
-        className="flex h-2 w-24 shrink-0 justify-start gap-0.5 overflow-hidden rounded-full sm:w-32 lg:w-48"
-      >
-        {parts
-          .filter((part) => part.value > 0)
-          .map((part) => (
-            <div
-              key={part.key}
-              className="h-full rounded-full"
-              style={{ width: `${part.value * scale}%`, backgroundColor: part.color }}
-            />
-          ))}
-      </div>
-      <span className="w-8 text-right tabular-nums">{total}</span>
-    </div>
-  );
-}
-
-const seriesColor = (i: number) => `var(--series-${(i % 6) + 1})`;
-const MUTED = "var(--muted-foreground)";
-const MUTED_SOFT = "color-mix(in oklab, var(--muted-foreground) 40%, transparent)";
-
-/**
- * A change with its direction and its size: the arrow says which way, the
- * count says how much, the percentage says how much that is. A topic with
- * no questions before is "new", not an infinite percentage.
- */
-function Delta({ now, before }: { now: number; before: number }) {
-  if (now === before) return <span className="text-muted-foreground">—</span>;
-  if (before === 0) return <span className="text-muted-foreground">new</span>;
-  const up = now > before;
-  const Arrow = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className="inline-flex items-center justify-end gap-1">
-      <Arrow className="size-3.5 shrink-0" aria-hidden />
-      <span>{deltaLabel(now, before)}</span>
-      <span className="text-muted-foreground">
-        {up ? "+" : "−"}
-        {Math.round((Math.abs(now - before) / before) * 100)}%
-      </span>
-    </span>
-  );
-}

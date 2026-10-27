@@ -14,6 +14,7 @@ import {
 
 export * from "./actions.ts";
 export * from "./conversation-context.ts";
+export * from "./intents.ts";
 export * from "./jobs.ts";
 export * from "./notification-signature.ts";
 export * from "./notifications.ts";

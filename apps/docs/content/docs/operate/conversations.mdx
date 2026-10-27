@@ -1,7 +1,7 @@
 ---
 title: Conversations
 description: The dashboard's conversation inbox and thread view, what the uncertain marker means, how feedback and reasons appear, and what a verified visitor's thread shows about who and where.
-updated: 2026-10-23
+updated: 2026-10-26
 ---
 
 **Conversations** lists every thread in the project, newest activity first,
@@ -17,7 +17,17 @@ Each row shows the thread's title, a preview of the last message, when it was
 last active, and a marker when the thread contains an uncertain answer: a
 refusal, an answer whose best retrieved match scored under the weak floor, or
 an answer that named something your content does not contain. The rule is the
-one the [Overview](/operate#what-uncertain-means) explains.
+one the [Overview](/operate#what-uncertain-means) explains. A second glyph
+marks a thread in which a visitor asked for a person or pushed back on an
+answer — the two [signals](/operate/usage#intent-and-signals) that ask to be
+read.
+
+The [Usage](/operate/usage) page's numbers open here narrowed to what they
+count: a topic (`?topic=billing`), an intent (`?intent=request`), a signal
+(`?signal=wants_human`), a context value the page attached
+(`?ctx.account=acc_42`), or a signed-in visitor (`?user=…`). Each narrowing
+is a chip above the list with a way back; the three filter counts respect
+it.
 
 Three views sit above the list, each with its count: **All**, **Uncertain**,
 and **Downvoted** (threads with an answer a visitor marked down). The view is
@@ -42,7 +52,11 @@ name they chose.
 ## The thread
 
 The transcript alternates the visitor's messages and the assistant's answers,
-rendered with the same Markdown the widget shows. Under each answer:
+rendered with the same Markdown the widget shows. Beside each question, when
+labelling is on, a badge names its intent (why they asked) and one more each
+signal it carries (pushback, frustration, wants a human); hovering a badge
+shows the rule. The lists and the switch are explained under
+[Usage](/operate/usage#intent-and-signals). Under each answer:
 
 - **Sources.** A pill per cited page, linking to it. A cited written answer
   shows a pen glyph and no link.
@@ -92,9 +106,10 @@ with the id and the display name the page supplied.
 
 ## What is stored
 
-A conversation holds its messages, each answer's citations, the retrieval
-signal behind it (how many chunks matched and the best score), the refusal
-reason, feedback, and the context the page supplied when the thread started.
+A conversation holds its messages, each question's topic, intent and
+signals, each answer's citations, the retrieval signal behind it (how many
+chunks matched and the best score), the refusal reason, feedback, and the
+context the page supplied when the thread started.
 Visitor IP addresses are never stored; rate limiting keeps only an HMAC hash.
 [Security](/manage/security#privacy-of-visitor-addresses) covers what leaves
 the instance, which is nothing except the calls to your model provider.

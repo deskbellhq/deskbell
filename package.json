@@ -27,6 +27,7 @@
     "docs:check": "pnpm --filter @deskbell/docs test",
     "evals": "tsx --env-file-if-exists=.env scripts/run-evals.ts",
     "evals:check": "tsx --env-file-if-exists=.env scripts/run-evals.ts --check",
+    "evals:classify": "tsx --env-file-if-exists=.env scripts/classify-evals.ts",
     "sweep": "tsx --env-file-if-exists=.env scripts/sweep-evals.ts",
     "vector-store:prune": "tsx --env-file-if-exists=.env scripts/vector-store-prune.ts",
     "verify-terms": "tsx --env-file-if-exists=.env scripts/verify-terms.ts",

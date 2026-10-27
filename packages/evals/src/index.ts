@@ -19,6 +19,16 @@ export {
   serializeBaseline,
   toBaseline,
 } from "./baseline";
+export {
+  CLASSIFICATION_GATE,
+  type ClassificationReport,
+  classificationGateFailures,
+  type LabelledCase,
+  type Prediction,
+  parseLabelledSet,
+  renderClassificationMarkdown,
+  scoreClassification,
+} from "./classification";
 export { DatasetSchema, describeBalance, loadDataset, parseDataset, splitByKind } from "./dataset";
 export {
   createDeterministicJudge,

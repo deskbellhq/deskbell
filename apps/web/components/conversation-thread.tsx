@@ -1,4 +1,12 @@
 import { actionCalls, conversations, endUsers, messages } from "@deskbell/db";
+import {
+  INTENT_INFO,
+  intentName,
+  isIntent,
+  isSignal,
+  SIGNAL_INFO,
+  signalName,
+} from "@deskbell/shared";
 import { Badge } from "@deskbell/ui/components/badge";
 import { Button } from "@deskbell/ui/components/button";
 import { cn } from "@deskbell/ui/lib/utils";
@@ -214,8 +222,31 @@ export async function ConversationThread({
                     <div className="rounded-2xl rounded-bl-md bg-muted px-3.5 py-2 text-sm whitespace-pre-wrap">
                       {message.content}
                     </div>
-                    <span className="pl-1 text-[11px] text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-1.5 pl-1 text-[11px] text-muted-foreground">
                       {relativeTime(message.createdAt)}
+                      {/* Why they asked and how it went (spec: intent-and-signals), each with its rule. */}
+                      {message.intent ? (
+                        <Badge
+                          variant="outline"
+                          className="text-muted-foreground"
+                          title={
+                            isIntent(message.intent)
+                              ? INTENT_INFO[message.intent].description
+                              : undefined
+                          }
+                        >
+                          {intentName(message.intent)}
+                        </Badge>
+                      ) : null}
+                      {(message.signals ?? []).map((signal) => (
+                        <Badge
+                          key={signal}
+                          variant="outline"
+                          title={isSignal(signal) ? SIGNAL_INFO[signal].description : undefined}
+                        >
+                          {signalName(signal)}
+                        </Badge>
+                      ))}
                     </span>
                   </div>
                 </div>

@@ -59,6 +59,15 @@ export interface TopicRow {
   conversations: number;
 }
 
+/** One stored label in one segment (spec: intent-and-signals): an intent, or a signal. */
+export interface LabelCountRow {
+  /** The stored key, or null for questions not yet labelled (never null for a signal). */
+  key: string | null;
+  segment: string;
+  questions: number;
+  conversations: number;
+}
+
 export interface VisitorRow {
   /** `end_users.id`, the Conversations page's `?user=` filter. */
   id: string;
@@ -87,6 +96,12 @@ export interface UsageData {
   breakdownMissing: number;
   topics: TopicRow[];
   previousTopics: Array<{ topic: string | null; questions: number }> | null;
+  /** Questions per intent in the window (spec: intent-and-signals). */
+  intents: LabelCountRow[];
+  previousIntents: Array<{ key: string | null; questions: number }> | null;
+  /** Questions per signal; a question with two signals counts under both. */
+  signals: LabelCountRow[];
+  previousSignals: Array<{ key: string | null; questions: number }> | null;
   /** Every verified visitor with a question in the window, most questions first, capped. */
   visitors: VisitorRow[];
   /** How many verified visitors asked, counting past the cap. */
@@ -133,6 +148,10 @@ export async function loadUsage(
     breakdown,
     topics,
     previousTopics,
+    intents,
+    previousIntents,
+    signals,
+    previousSignals,
     visitors,
   ] = await Promise.all([
     loadKeys(db, project, current),
@@ -143,6 +162,10 @@ export async function loadUsage(
     view.by ? loadBreakdown(db, scope, view.by, current) : null,
     loadTopics(db, scope, segment, current),
     previous ? loadTopicTotals(db, scope, previous) : null,
+    loadLabels(db, scope, segment, current, sql`q.intent`),
+    previous ? loadLabelTotals(db, scope, previous, sql`q.intent`) : null,
+    loadLabels(db, scope, segment, current, sql`unnest(q.signals)`),
+    previous ? loadLabelTotals(db, scope, previous, sql`unnest(q.signals)`) : null,
     loadTopVisitors(db, scope, current),
   ]);
 
@@ -156,6 +179,10 @@ export async function loadUsage(
     breakdownMissing: breakdown?.missing ?? 0,
     topics,
     previousTopics,
+    intents,
+    previousIntents,
+    signals,
+    previousSignals,
     visitors: visitors.rows,
     identifiedVisitors: visitors.identified,
     powerUsers: visitors.power,
@@ -196,6 +223,8 @@ function questionsSql(scope: SQL, segment: SQL, window: Window): SQL {
            coalesce(c.end_user_id, c.session_id) as visitor,
            c.end_user_id as end_user_id,
            m.topic as topic,
+           m.intent as intent,
+           m.signals as signals,
            m.created_at as created_at,
            to_char(m.created_at at time zone 'UTC', 'YYYY-MM-DD') as day
     from ${conversations} c
@@ -356,6 +385,51 @@ async function loadTopicTotals(
     with q as (${questionsSql(scope, sql`${NO_SEGMENT}`, window)})
     select topic, count(*) as questions from q group by 1`);
   return rows.map((r) => ({ topic: r.topic, questions: num(r.questions) }));
+}
+
+/**
+ * Questions per label in the window, per segment, for a label expression over
+ * the question rows: `q.intent` gives one row per intent (null for the not
+ * yet labelled), `unnest(q.signals)` one per signal a question carries, so a
+ * question with two signals counts under both and one with none under
+ * nothing. Shares are taken against the period's question total, not the
+ * sum of these rows.
+ */
+async function loadLabels(
+  db: Database,
+  scope: SQL,
+  segment: SQL,
+  window: Window,
+  label: SQL,
+): Promise<LabelCountRow[]> {
+  const { rows } = await db.execute<{
+    key: string | null;
+    segment: string;
+    questions: string;
+    conversations: string;
+  }>(sql`
+    with q as (${questionsSql(scope, segment, window)})
+    select ${label} as key, q.segment, count(*) as questions,
+           count(distinct q.conversation_id) as conversations
+    from q group by 1, 2`);
+  return rows.map((r) => ({
+    key: r.key,
+    segment: r.segment,
+    questions: num(r.questions),
+    conversations: num(r.conversations),
+  }));
+}
+
+async function loadLabelTotals(
+  db: Database,
+  scope: SQL,
+  window: Window,
+  label: SQL,
+): Promise<Array<{ key: string | null; questions: number }>> {
+  const { rows } = await db.execute<{ key: string | null; questions: string }>(sql`
+    with q as (${questionsSql(scope, sql`${NO_SEGMENT}`, window)})
+    select ${label} as key, count(*) as questions from q group by 1`);
+  return rows.map((r) => ({ key: r.key, questions: num(r.questions) }));
 }
 
 /**

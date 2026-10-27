@@ -1,23 +1,26 @@
 import type { QuestionClassifier } from "@deskbell/core/models";
 import { conversations, type Database, messages, projects } from "@deskbell/db";
 import type { TopicsCatchupJob } from "@deskbell/shared";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   type ClassifyOutcome,
   type ClassifyScope,
   classifyQuestion,
   createClassifyDeps,
+  pendingPredicate,
 } from "./classify-question";
 
 /**
- * topics.catchup (spec: question-topics): the safety net under the
- * per-question job, and what a re-label runs after the topic list changes.
+ * topics.catchup (spec: question-topics, intent-and-signals): the safety
+ * net under the per-question job, and what a re-label runs after the topic
+ * list changes.
  *
- * For each project with topics (or the one named), every unlabelled visitor
- * question is labelled, oldest first, up to a cap per run so a backlog from
- * a newly configured list is worked through over a few hours rather than
- * holding this serial worker. A budget refusal ends the project's run: the
- * day is spent, the next hour tries again.
+ * For each project with labelling switched on (or the one named), every
+ * visitor question still pending — never labelled, or labelled before the
+ * project named topics — is labelled, oldest first, up to a cap per run so
+ * a backlog is worked through over a few hours rather than holding this
+ * serial worker. A budget refusal ends the project's run: the day is spent,
+ * the next hour tries again.
  *
  * Resumable by construction: every label leaves the predicate, so a crash
  * mid-run loses one question and a retry continues.
@@ -26,9 +29,9 @@ import {
 export const CATCHUP_CAP = 200;
 
 export interface TopicsCatchupDeps {
-  /** Projects with a topic list; the one named when the job carries a scope. */
+  /** Projects with labelling on; the one named when the job carries a scope. */
   listProjects(): Promise<ClassifyScope[]>;
-  /** Unlabelled visitor questions, oldest first. */
+  /** Visitor questions still pending for this project, oldest first. */
   loadUnlabelled(scope: ClassifyScope, limit: number): Promise<string[]>;
   classify(scope: ClassifyScope, messageId: string): Promise<ClassifyOutcome>;
 }
@@ -58,6 +61,8 @@ export async function runTopicsCatchup(
         summary.budget += 1;
         break;
       }
+      // The switch went off between listing and labelling: nothing more to do here.
+      if (outcome === "off") break;
       if (outcome === "labelled") summary.labelled += 1;
     }
   }
@@ -73,9 +78,15 @@ export function createTopicsCatchupDeps(
       return db
         .select({ orgId: projects.orgId, projectId: projects.id })
         .from(projects)
-        .where(sql`jsonb_array_length(${projects.topics}) > 0`);
+        .where(eq(projects.classifyQuestions, true));
     },
     async loadUnlabelled(scope, limit) {
+      const [project] = await db
+        .select({ topics: projects.topics })
+        .from(projects)
+        .where(and(eq(projects.id, scope.projectId), eq(projects.orgId, scope.orgId)))
+        .limit(1);
+      if (!project) return [];
       const rows = await db
         .select({ id: messages.id })
         .from(messages)
@@ -85,7 +96,7 @@ export function createTopicsCatchupDeps(
             eq(conversations.orgId, scope.orgId),
             eq(conversations.projectId, scope.projectId),
             eq(messages.role, "user"),
-            isNull(messages.topic),
+            pendingPredicate(project.topics.length > 0),
           ),
         )
         .orderBy(asc(messages.createdAt), asc(messages.id))
