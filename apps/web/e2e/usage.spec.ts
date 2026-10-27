@@ -15,6 +15,14 @@ function card(page: Page, label: string) {
   return page.locator("dl > *").filter({ has: page.getByText(label, { exact: true }) });
 }
 
+/** The table under one of the labelled sections: Topics, Intent or Signals. */
+function labelTable(page: Page, heading: string) {
+  return page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { level: 2, name: new RegExp(`^${heading}`) }) })
+    .getByRole("table");
+}
+
 test.describe("Usage", () => {
   test("counts customers' questions, conversations, visitors and returns", async ({ page }) => {
     await page.goto(CUSTOMER);
@@ -63,7 +71,7 @@ test.describe("Usage", () => {
 
   test("groups questions by topic and opens the conversations behind one", async ({ page }) => {
     await page.goto(CUSTOMER);
-    const topics = page.getByRole("table").last();
+    const topics = labelTable(page, "Topics");
     const billing = topics.getByRole("row").filter({ hasText: "Billing" });
     await expect(billing.getByRole("cell").nth(1)).toHaveText("3");
     await expect(
@@ -72,9 +80,9 @@ test.describe("Usage", () => {
     await expect(topics.getByText("Not yet labelled")).toHaveCount(0);
 
     await page.goto("/usage?period=7d");
-    await expect(page.getByRole("table").last().getByText("Not yet labelled")).toBeVisible();
+    await expect(labelTable(page, "Topics").getByText("Not yet labelled")).toBeVisible();
     await expect(
-      page.getByRole("table").last().getByRole("row").filter({ hasText: "Other" }),
+      labelTable(page, "Topics").getByRole("row").filter({ hasText: "Other" }),
     ).toHaveCount(1);
 
     await page.goto(CUSTOMER);
@@ -87,6 +95,66 @@ test.describe("Usage", () => {
     await expect(page.getByRole("link", { name: "How are invoices issued?" })).toBeVisible();
     await expect(page.getByRole("link", { name: "How do I schedule an export?" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Can I export to CSV?" })).toHaveCount(0);
+  });
+
+  test("counts intents and signals and opens the conversations behind them", async ({ page }) => {
+    await page.goto(CUSTOMER);
+    const intents = labelTable(page, "Intent");
+    const howTo = intents.getByRole("row").filter({ hasText: "How-to" });
+    await expect(howTo.getByRole("cell").nth(1)).toHaveText("2");
+    await expect(howTo.getByRole("cell").nth(2)).toHaveText("40%");
+    await expect(
+      intents.getByRole("row").filter({ hasText: "Request" }).getByRole("cell").nth(1),
+    ).toHaveText("1");
+    await expect(intents.getByText("Not yet labelled")).toHaveCount(0);
+    // The reading names the leader and the share of requests.
+    await expect(page.getByText("How-to leads with 40% of questions; 20% asked")).toBeVisible();
+
+    const signals = labelTable(page, "Signals");
+    const pushback = signals.getByRole("row").filter({ hasText: "Pushback" });
+    await expect(pushback.getByRole("cell").nth(1)).toHaveText("1");
+    await expect(pushback.getByRole("cell").nth(2)).toHaveText("20%");
+    await expect(
+      signals.getByRole("row").filter({ hasText: "Wants a human" }).getByRole("cell").nth(1),
+    ).toHaveText("1");
+    // The not-yet-labelled question has no row here: a signal is a fact, not a gap.
+    await expect(signals.getByText("Not yet labelled")).toHaveCount(0);
+
+    // Whole project: the unlabelled question shows under Intent, and the rule is one hover away.
+    await page.goto("/usage?period=7d");
+    await expect(labelTable(page, "Intent").getByText("Not yet labelled")).toBeVisible();
+    await labelTable(page, "Intent").getByRole("button", { name: "Intent", exact: true }).focus();
+    await expect(page.getByRole("tooltip")).toContainText("one of six fixed intents");
+
+    // A row is a door into the inbox, narrowed with a chip.
+    await page.goto(CUSTOMER);
+    await signals.getByRole("link", { name: "Wants a human" }).click();
+    await page.waitForURL(/\/conversations\?period=7d&signal=wants_human&ctx\.user_type=customer/);
+    const narrowed = page.getByRole("list", { name: "Narrowed to" });
+    await expect(narrowed).toContainText("Signal:");
+    await expect(narrowed).toContainText("Wants a human");
+    await expect(page.getByRole("link", { name: "Can I export to CSV?" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "How are invoices issued?" })).toHaveCount(0);
+    await expect(narrowed.getByRole("link", { name: "Remove Signal filter" })).toHaveAttribute(
+      "href",
+      "/conversations?period=7d&ctx.user_type=customer",
+    );
+
+    await page.goto("/conversations?period=7d&intent=troubleshooting");
+    await expect(page.getByRole("list", { name: "Narrowed to" })).toContainText("Troubleshooting");
+    await expect(page.getByRole("link", { name: "How do I schedule an export?" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Can I export to CSV?" })).toHaveCount(0);
+
+    // Only a thread that pushed back or asked for a person wears the inbox glyph.
+    await page.goto("/conversations?period=7d&intent=how_to&ctx.user_type=customer");
+    await expect(
+      page.getByRole("link", { name: "How are invoices issued?" }).getByLabel(/asked for a person/),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .getByRole("link", { name: "How do I schedule an export?" })
+        .getByLabel(/asked for a person/),
+    ).toBeVisible();
   });
 
   test("lists signed-in visitors by name and no one else", async ({ page }) => {
@@ -166,4 +234,18 @@ test("the Conversations page opens the newest thread of the narrowed view", asyn
   await expect(transcript.getByRole("heading", { level: 2 })).toHaveText(
     "How do I schedule an export?",
   );
+  // Each question wears its intent and signals (spec: intent-and-signals).
+  await expect(transcript.getByText("How-to", { exact: true })).toBeVisible();
+  await expect(transcript.getByText("Troubleshooting", { exact: true })).toBeVisible();
+  await expect(transcript.getByText("Pushback", { exact: true })).toBeVisible();
+  await expect(transcript.getByText("Frustration", { exact: true })).toBeVisible();
+  // The inbox marks the thread that pushed back and the one that wants a person.
+  await expect(
+    page
+      .getByRole("link", { name: "How do I schedule an export?" })
+      .getByLabel(/asked for a person/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Can I export to CSV?" }).getByLabel(/asked for a person/),
+  ).toBeVisible();
 });

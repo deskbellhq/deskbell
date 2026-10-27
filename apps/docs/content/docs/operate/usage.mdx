@@ -1,13 +1,13 @@
 ---
 title: Usage
-description: The Usage page counts questions, conversations and visitors over a period, split and filtered by the context your pages attach, and grouped into the topics you name.
-updated: 2026-10-23
+description: The Usage page counts questions, conversations and visitors over a period, split and filtered by the context your pages attach, grouped into the topics you name, and labelled with why each question was asked and how it went.
+updated: 2026-10-26
 ---
 
 The Usage page in the dashboard is the count of how much the widget is used,
-by whom in the aggregate, and about what. Four cards, a chart and up to three tables,
-all computed from the stored conversations on every read, so the page is
-always current.
+by whom in the aggregate, about what, and how it went. Four cards, a chart and
+up to five tables, all computed from the stored conversations on every read,
+so the page is always current.
 
 Every number is a count over **visitor questions** in the period. A
 conversation counts when it had a question in the period, a visitor is a
@@ -55,8 +55,52 @@ it. Questions the worker has not labelled yet sit in one row at the bottom;
 an hourly job catches up on them.
 
 Renaming a topic changes its key, so the settings page offers **Re-label**: it
-clears every label in the project and labels every question again against
-the current list, oldest first, a few hundred per hour.
+clears every label in the project — topic, intent and signals — and labels
+every question again against the current list, oldest first, a few hundred
+per hour.
+
+## Intent and signals
+
+Topics say what a question was about. The same model call also writes why it
+was asked and how it went, from two fixed lists that are the same for every
+project, so there is nothing to configure: the switch at the top of
+**Settings › Topics**, **Label every question**, is on by default and is the
+one setting. Off means no model call per question and no labels of any kind,
+topics included.
+
+Every question gets exactly one **intent**:
+
+| Intent | Rule | What it points at |
+|---|---|---|
+| How-to | Wants to do something: set up, use, change, achieve a result | A doc, or a written answer |
+| Troubleshooting | Something is wrong, failing or not as expected | A doc, or a gap when unanswered |
+| Lookup | Wants a fact: a limit, a price, a definition, whether something is supported | Often a one-line answer |
+| Request | Asks for something the product does not do, or asks whether it can and the answer is no | The product backlog |
+| Off topic | Not about the product at all | Nothing |
+| Other | Fits none of the above: greetings, tests, fragments | Nothing |
+
+and any number of **signals**, usually none:
+
+| Signal | Rule | What it points at |
+|---|---|---|
+| Pushback | Repeats or disputes the previous answer: "no, I meant…", "that's wrong", "that didn't work" | Read the thread; a wrong or missing page the retrieval scores cannot see |
+| Frustration | Negative tone, urgency or complaint | Read the thread |
+| Wants a human | Asks for a person, support, contact details, a ticket or a call | A handoff the widget could not make |
+
+The **Intent** table reads like the Topics table — questions, share, change
+against the previous period, conversations, a column per series when split —
+and its sentence names the leading intent and the share of requests, the one
+intent that is a product signal rather than a documentation one. The
+**Signals** table lists the three signals the same way; a question with two
+signals counts under both, and the share is of every question in the period,
+so the column does not add up to 100. Both link into the Conversations page
+narrowed to the label, and the thread view shows each question's intent and
+signals as badges beside it ([Conversations](/operate/conversations#the-thread)).
+
+The model reads the question and the visitor's previous question in the
+thread, so a follow-up inherits its topic and "no, I meant the API" counts
+as pushback against the answer before it. Every rule above is also the
+tooltip on the page.
 
 ## Visitors
 

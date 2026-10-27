@@ -1,4 +1,4 @@
-import { topicName } from "@deskbell/shared";
+import { intentName, signalName, topicName } from "@deskbell/shared";
 
 import { InboxList } from "@/components/conversations-inbox";
 import { countConversations, listConversations } from "@/lib/conversations-list";
@@ -23,7 +23,13 @@ export async function ConversationsListPane({
   const view = parseView(params);
   const range = resolveRange(view, todayUtc());
   const project = await getDefaultProject();
-  const narrowing = { topic: view.topic, context: view.context, user: view.user };
+  const narrowing = {
+    topic: view.topic,
+    intent: view.intent,
+    signal: view.signal,
+    context: view.context,
+    user: view.user,
+  };
   const [rows, counts, contextNames, visitor] = await Promise.all([
     listConversations(project, { filter: view.filter, range, ...narrowing }),
     countConversations(project, range, narrowing),
@@ -34,6 +40,8 @@ export async function ConversationsListPane({
   ]);
   const labels = {
     topic: view.topic ? topicName(project.topics, view.topic) : null,
+    intent: view.intent ? intentName(view.intent) : null,
+    signal: view.signal ? signalName(view.signal) : null,
     context: view.context ? (contextNames[view.context.key] ?? view.context.id) : null,
     user: view.user ? (visitor ?? "Unknown visitor") : null,
   };

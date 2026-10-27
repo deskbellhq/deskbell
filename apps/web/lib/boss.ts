@@ -121,7 +121,7 @@ export async function enqueuePurgeConversations(job: PurgeConversationsJob): Pro
   await boss.send(QUEUE_PURGE_CONVERSATIONS, job, { singletonKey: `purge:${job.projectId}` });
 }
 
-/** Label one visitor question with a project topic (spec: question-topics). */
+/** Label one visitor question with its topic, intent and signals (spec: question-topics, intent-and-signals). */
 export async function enqueueClassifyQuestion(job: ClassifyQuestionJob): Promise<void> {
   const boss = await getBoss();
   await boss.send(QUEUE_CLASSIFY_QUESTION, job);

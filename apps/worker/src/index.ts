@@ -65,7 +65,7 @@ import { handleTopicsCatchup } from "./handlers/topics-catchup";
  *   gaps.analyze        — a finding and a recommendation for one cluster (spec: gap-analysis)
  *   conversations.title — name a thread from its first exchange, opt-in (spec: conversation-context-and-titles)
  *   notifications.deliver — post one event to the project's Slack/webhook channels (spec: project-notifications)
- *   topics.classify     — label one visitor question with a project topic (spec: question-topics)
+ *   topics.classify     — label one visitor question with its topic, intent and signals (spec: question-topics, intent-and-signals)
  *   topics.catchup      — label what the producers missed, hourly, and after a topic-list change
  */
 /**
@@ -263,9 +263,9 @@ async function main() {
     }
   });
 
-  // One short model call per question, only for projects with a topic list.
-  // A labelled, removed or topic-less question is a no-op; budget refusals
-  // are not retried (the day is spent; the catch-up tries tomorrow).
+  // One short model call per question, while the project's labelling switch
+  // is on. A labelled or removed question is a no-op; budget refusals are
+  // not retried (the day is spent; the catch-up tries tomorrow).
   await boss.work(QUEUE_CLASSIFY_QUESTION, async (jobs) => {
     for (const job of jobs) {
       const payload = ClassifyQuestionJobSchema.parse(job.data);

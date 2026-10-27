@@ -33,6 +33,25 @@ test.describe("Settings › Topics", () => {
     await expect(page.getByText("Saved.")).toBeVisible();
   });
 
+  test("switches labelling off and on", async ({ page }) => {
+    await page.goto("/settings/topics");
+    const toggle = page.getByRole("switch", { name: "Label every question" });
+    await expect(toggle).toBeChecked();
+    await toggle.click();
+    await expect(page.getByText("Labelling is off.")).toBeVisible();
+    await page.reload();
+    await expect(toggle).not.toBeChecked();
+    // Off hides the re-label and tells the Usage page so.
+    await expect(page.getByRole("button", { name: "Re-label" })).toHaveCount(0);
+    await page.goto("/usage?period=7d&ctx.user_type=internal");
+    await expect(page.getByText("Questions are not labelled")).toHaveCount(0);
+    await page.goto("/settings/topics");
+    await toggle.click();
+    await expect(page.getByText("Questions are labelled as they come in.")).toBeVisible();
+    await page.reload();
+    await expect(toggle).toBeChecked();
+  });
+
   test("offers the re-label behind a confirmation", async ({ page }) => {
     await page.goto("/settings/topics");
     await page.getByRole("button", { name: "Re-label" }).click();

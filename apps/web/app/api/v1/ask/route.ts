@@ -235,15 +235,16 @@ export async function POST(request: Request) {
         role: "user",
         content: parsed.data.message,
       });
-      // A question gets its topic label off the visitor's path (spec:
-      // question-topics): only when the project has topics, and a queue
-      // failure is logged — the hourly catch-up labels what this missed.
-      if (project.topics.length > 0) {
+      // A question gets its topic, intent and signals off the visitor's path
+      // (spec: question-topics, intent-and-signals): while the project's
+      // labelling switch is on, and a queue failure is logged — the hourly
+      // catch-up labels what this missed.
+      if (project.classifyQuestions) {
         enqueueClassifyQuestion({
           orgId: project.orgId,
           projectId: project.id,
           messageId: questionId,
-        }).catch((error) => console.error("[ask] failed to enqueue topic labelling:", error));
+        }).catch((error) => console.error("[ask] failed to enqueue question labelling:", error));
       }
     }
 

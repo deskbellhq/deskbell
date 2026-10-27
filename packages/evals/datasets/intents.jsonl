@@ -1,0 +1,21 @@
+# One question per line: { "id", "question", "previous"?, "intent", "signals"? }. Authored, not mined: exercises the script, proves nothing about quality.
+{"id":"howto-webhook","question":"How do I set up a webhook for new orders?","intent":"how_to"}
+{"id":"howto-followup","question":"and for refunds?","previous":"How do I set up a webhook for new orders?","intent":"how_to"}
+{"id":"trouble-import","question":"My CSV import keeps failing with 'invalid header' even though the header looks fine","intent":"troubleshooting"}
+{"id":"trouble-login","question":"I can't log in since this morning, it just spins","intent":"troubleshooting","signals":["frustration"]}
+{"id":"lookup-limit","question":"What's the maximum file size for an upload?","intent":"lookup"}
+{"id":"lookup-price","question":"How much does the Pro plan cost per month?","intent":"lookup"}
+{"id":"lookup-support","question":"Do you support SAML single sign-on?","intent":"lookup"}
+{"id":"request-dark","question":"Is there a dark mode? If not, please add one","intent":"request"}
+{"id":"request-export","question":"Can I export my dashboard as a PDF? I really need that","intent":"request"}
+{"id":"offtopic-weather","question":"What's the weather in Berlin tomorrow?","intent":"off_topic"}
+{"id":"offtopic-poem","question":"Write me a poem about cats","intent":"off_topic"}
+{"id":"other-hi","question":"hello?","intent":"other"}
+{"id":"other-test","question":"test","intent":"other"}
+{"id":"pushback-meant","question":"No, I meant the API key for the sandbox, not production","previous":"Where do I find my API key?","intent":"lookup","signals":["pushback"]}
+{"id":"pushback-wrong","question":"That's not right, that setting doesn't exist in my account","previous":"How do I turn off email notifications?","intent":"troubleshooting","signals":["pushback"]}
+{"id":"pushback-didnt-work","question":"I tried that and it still fails","previous":"My export is stuck at 0%","intent":"troubleshooting","signals":["pushback"]}
+{"id":"human-talk","question":"Can I talk to a real person please?","intent":"other","signals":["wants_human"]}
+{"id":"human-ticket","question":"How do I open a support ticket about my invoice?","intent":"how_to","signals":["wants_human"]}
+{"id":"human-frustrated","question":"This is useless, just give me someone's email","previous":"How do I cancel my subscription?","intent":"other","signals":["frustration","wants_human"]}
+{"id":"frustrated-again","question":"Third time asking: why is my invoice wrong AGAIN?","previous":"Why is my invoice wrong?","intent":"troubleshooting","signals":["pushback","frustration"]}

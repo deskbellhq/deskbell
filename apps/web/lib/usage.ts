@@ -160,3 +160,93 @@ export const POWER_USER_DAYS = 3;
 export function percent(part: number, whole: number): number | null {
   return whole > 0 ? Math.round((part / whole) * 100) : null;
 }
+
+/** A labelled count the query returns: one label in one segment. */
+export interface LabelCount {
+  /** The stored key, or null for questions not yet labelled. */
+  key: string | null;
+  segment: string;
+  questions: number;
+  conversations: number;
+}
+
+/** One table row of a labelled breakdown, folded onto the kept series. */
+export interface LabelRow {
+  key: string | null;
+  questions: number;
+  conversations: number;
+  /** Questions per kept series id, the rest under OTHER_SEGMENT. */
+  perSegment: Map<string, number>;
+  /** Questions in the period before; null when there is no previous period. */
+  before: number | null;
+}
+
+/**
+ * Rows for a labelled table (spec: usage-page, intent-and-signals): counts
+ * summed per label across segments, each segment folded onto the kept
+ * series, the previous period's count joined by key. Named labels first by
+ * size, then the built-in bucket, then the not-yet-labelled row, so the
+ * reader meets the real groupings before the remainder.
+ */
+export function labelRows(
+  rows: LabelCount[],
+  segments: readonly Segment[],
+  previous: Array<{ key: string | null; questions: number }> | null,
+  bucket: string | null,
+): LabelRow[] {
+  const byKey = new Map<string | null, LabelRow>();
+  for (const row of rows) {
+    const entry = byKey.get(row.key) ?? {
+      key: row.key,
+      questions: 0,
+      conversations: 0,
+      perSegment: new Map<string, number>(),
+      before: null,
+    };
+    entry.questions += row.questions;
+    entry.conversations += row.conversations;
+    const id = foldSegment(row.segment, segments);
+    entry.perSegment.set(id, (entry.perSegment.get(id) ?? 0) + row.questions);
+    byKey.set(row.key, entry);
+  }
+  const previousByKey = new Map(previous?.map((p) => [p.key, p.questions]) ?? []);
+  const rank = (key: string | null) => (key === null ? 2 : key === bucket ? 1 : 0);
+  return [...byKey.values()]
+    .map((row) => ({
+      ...row,
+      before: previous ? (previousByKey.get(row.key) ?? 0) : null,
+    }))
+    .sort((a, b) => rank(a.key) - rank(b.key) || b.questions - a.questions);
+}
+
+export interface CompositionPart {
+  key: string;
+  share: number;
+  /** The fold: everything not among the named leaders. */
+  muted: boolean;
+}
+
+/**
+ * The share picture above a labelled table: the largest named labels, up to
+ * `keep`, and one muted part for everything else — the bucket, the
+ * not-yet-labelled and any named label past the cap. Null when there is
+ * nothing to divide.
+ */
+export function composition(
+  rows: readonly LabelRow[],
+  total: number,
+  bucket: string | null,
+  keep = 5,
+): CompositionPart[] | null {
+  if (total <= 0) return null;
+  const named = rows.filter((r) => r.key !== null && r.key !== bucket).slice(0, keep);
+  const shown = named.reduce((n, r) => n + r.questions, 0);
+  const parts: CompositionPart[] = named.map((r) => ({
+    key: r.key ?? "",
+    share: percent(r.questions, total) ?? 0,
+    muted: false,
+  }));
+  if (total > shown)
+    parts.push({ key: "__rest__", share: percent(total - shown, total) ?? 0, muted: true });
+  return parts;
+}

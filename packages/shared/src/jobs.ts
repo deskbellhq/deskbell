@@ -151,10 +151,11 @@ export const DeliverNotificationJobSchema = z.object({
 export type DeliverNotificationJob = z.infer<typeof DeliverNotificationJobSchema>;
 
 /**
- * Label one question with the project's topic that fits it best (spec:
- * question-topics). Enqueued by the ask route after the visitor's message
- * is stored, only when the project has topics; the hourly catch-up labels
- * whatever this missed. Budget-checked in the worker.
+ * Label one question with the project's topic, its intent and its signals
+ * (spec: question-topics, intent-and-signals). Enqueued by the ask route
+ * after the visitor's message is stored, while the project's labelling
+ * switch is on; the hourly catch-up labels whatever this missed.
+ * Budget-checked in the worker.
  */
 export const QUEUE_CLASSIFY_QUESTION = "topics.classify";
 export const ClassifyQuestionJobSchema = z.object({
@@ -165,10 +166,10 @@ export const ClassifyQuestionJobSchema = z.object({
 export type ClassifyQuestionJob = z.infer<typeof ClassifyQuestionJobSchema>;
 
 /**
- * Label every unlabelled question in projects that have topics, oldest
- * first (spec: question-topics). Scheduled hourly with no payload; the
- * settings page sends it for one project after clearing labels, so a
- * changed list is applied without waiting for the cron.
+ * Label every pending question in projects with labelling on, oldest first
+ * (spec: question-topics, intent-and-signals). Scheduled hourly with no
+ * payload; the settings page sends it for one project after clearing
+ * labels, so a changed list is applied without waiting for the cron.
  */
 export const QUEUE_TOPICS_CATCHUP = "topics.catchup";
 export const TopicsCatchupJobSchema = z.object({

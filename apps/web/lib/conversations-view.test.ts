@@ -1,12 +1,15 @@
+import { INTENTS, SIGNALS } from "@deskbell/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   conversationsHref,
   formatPeriod,
+  INTENT_KEYS,
   parseDay,
   parseFilter,
   parseView,
   resolveRange,
+  SIGNAL_KEYS,
   shiftDay,
 } from "./conversations-view";
 
@@ -40,6 +43,8 @@ describe("parseView", () => {
       from: null,
       to: null,
       topic: null,
+      intent: null,
+      signal: null,
       context: null,
       user: null,
     });
@@ -52,6 +57,8 @@ describe("parseView", () => {
       from: "2026-09-01",
       to: "2026-09-23",
       topic: null,
+      intent: null,
+      signal: null,
       context: null,
       user: null,
     });
@@ -59,6 +66,8 @@ describe("parseView", () => {
       from: "2026-09-01",
       to: "2026-09-23",
       topic: null,
+      intent: null,
+      signal: null,
       context: null,
       user: null,
     });
@@ -73,12 +82,37 @@ describe("parseView", () => {
       from: null,
       to: null,
       topic: null,
+      intent: null,
+      signal: null,
       context: null,
       user: null,
     });
   });
   it("lets period win over a stray range", () => {
     expect(parseView({ period: "30d", from: "2026-09-01", to: "2026-09-23" }).period).toBe("30d");
+  });
+});
+
+describe("intent and signal narrowing", () => {
+  it("spells the keys the way the shared package does", () => {
+    expect([...INTENT_KEYS]).toEqual([...INTENTS]);
+    expect([...SIGNAL_KEYS]).toEqual([...SIGNALS]);
+  });
+  it("keeps a known key and drops anything else", () => {
+    expect(parseView({ intent: "request", signal: "wants_human" })).toMatchObject({
+      intent: "request",
+      signal: "wants_human",
+    });
+    expect(parseView({ intent: "angry", signal: "HOW_TO" })).toMatchObject({
+      intent: null,
+      signal: null,
+    });
+    expect(conversationsHref("/conversations", parseView({ period: "7d", intent: "how_to" }))).toBe(
+      "/conversations?period=7d&intent=how_to",
+    );
+    expect(conversationsHref("/conversations", parseView({ signal: "pushback" }))).toBe(
+      "/conversations?signal=pushback",
+    );
   });
 });
 
@@ -154,6 +188,8 @@ describe("topic and context filters", () => {
     expect(view.context).toEqual({ key: "account", id: "acc_1" });
     expect(parseView({ topic: "Not A Key", "ctx.1bad": "x" })).toMatchObject({
       topic: null,
+      intent: null,
+      signal: null,
       context: null,
       user: null,
     });
