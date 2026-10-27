@@ -15,7 +15,7 @@ Where v1 stands, area by area:
 | A reply of your own for questions about the visitor's own account, when no action can look it up | **works** — Settings › Visitor data; counted as a refusal, never as a gap; drops out on turns that have tools |
 | Clarifying questions when the retrieved pages answer a question in more than one way | **works**, off by default — `DESKBELL_CLARIFY=on`; options are always retrieved page titles, asked at most once per conversation |
 | Embeddable widget (shadow DOM, brandable) | **works** |
-| Dashboard: Sources, Conversations, Appearance, Install, Members | **works** |
+| Dashboard: Sources, Written answers, Actions, Conversations, Gaps, Usage, Settings (Appearance, Install, Members, Notifications, Identity, Answer style, Visitor data, Topics, Retention) | **works** |
 | Dashboard authentication (email+password, invitation-only membership, roles) | **works** |
 | Sign in with Google (optional, env-gated; invited or allowed-domain members) | **works** — a login method, not identity-provider SSO (that stays in `packages/ee`) |
 | `docker compose up` self-host | **works** |
@@ -27,6 +27,10 @@ Where v1 stands, area by area:
 | Hybrid retrieval (vector + FTS + fusion) | **works**, off by default — measured against the vector-only default and not adopted |
 | Weaviate as the vector store (optional driver for a cluster you already run) | **works** — `DESKBELL_VECTOR_STORE=weaviate`; pgvector stays the default and the only driver the install needs |
 | Gap & unanswered-question analytics | **works** — clusters by meaning, period + trend, resolve/reopen, analysis, CSV + dataset export |
+| Written answers (an answer typed in the dashboard, indexed like a page, cited as a written answer) | **works** |
+| Answer verification (names an answer asserts checked against the content; unknown names spoken as a caveat, flagged as a gap, counted by the harness) | **works** — on by default, instance-wide |
+| Answer style (a per-project paragraph on tone, length, address and language) | **works** — Settings › Answer style |
+| Usage analytics (questions, conversations, visitors over a period and against the period before; split by page context; topics named per project; signed-in visitors by name; every number opens its conversations) | **works** |
 | Notifications (Slack incoming webhook, signed JSON webhook) on negative feedback | **works** — per-channel event toggles, custom Slack message, conversation-link template; more events land as union members |
 | Actions through MCP (servers attached per project, per-tool off / allowed / needs-confirmation, confirmation card, signed visitor identity token, audit table with an actions log page + CSV) | **works** — the D7 model: identity binding, per-tool permissions, confirmation flows and audit logging; every tool is off until an admin chooses |
 | Conversation retention (a window in days per project; the worker removes older conversations hourly, messages and tool calls included) | **works** — off by default; the settings page names what a window would remove before it is saved |
@@ -100,7 +104,6 @@ see [D10](.ai/decisions/D10-transport-neutral-core.md).
    each with its own sources, widget key, appearance and policies. The schema has
    allowed it since the first commit; only the dashboard is single-project.
 
-The headless client is deliberately last, not cut.
 
 ## Why the scope lines sit where they do
 

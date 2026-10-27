@@ -7,7 +7,7 @@
 <p align="center"><strong>The open-source answer engine for your docs.</strong></p>
 
 <p align="center">
-  Deskbell answers your users' questions from your documentation, with a citation for every answer and an honest "I don't know" when the docs do not say. Self-hosted, any model, your brand. Actions through MCP are on the roadmap.
+  Deskbell answers your users' questions from your documentation, with a citation for every answer and an honest "I don't know" when the docs do not say. Self-hosted, any model, your brand. Through MCP it also looks up a visitor's own data and acts for them, behind per-tool permissions and a confirmation step.
 </p>
 
 <p align="center">
@@ -32,8 +32,9 @@
 </p>
 
 > **Where it stands.** The whole path works: crawl a docs site, ask through the
-> widget, get a cited answer or a refusal, see what the docs could not answer on
-> the Gaps page, measure a change with the eval harness. [ROADMAP.md](./ROADMAP.md)
+> widget, get a cited answer or a refusal, let it act through an MCP server you
+> attach, see what the docs could not answer on the Gaps page and who asks what on
+> the Usage page, measure a change with the eval harness. [ROADMAP.md](./ROADMAP.md)
 > has the table of what works and what does not.
 
 ## Why Deskbell
@@ -59,6 +60,13 @@
 - Grounded retrieval, a citation per answer, and a refusal when the docs do not cover
   the question. Follow-ups are rewritten to stand alone before retrieval, so "and how
   do I configure it?" finds the right page.
+- Answer verification, on by default: every name an answer asserts is checked
+  against your content after it streams, and a name found nowhere becomes a spoken
+  caveat, a gap and an eval metric.
+- Answer style: a paragraph per project on how the assistant should sound. A reply
+  of your own for questions about the visitor's own account, shown instead of a
+  guess when no action can look it up. Clarifying questions when the retrieved pages
+  answer in more than one way (off by default).
 - Hybrid retrieval (vector + full-text) and reranking are switches, off by default:
   on the tuning corpus they did not beat plain vector search, and the harness is
   there for you to check on yours.
@@ -94,9 +102,13 @@
 
 **Dashboard**
 
-- Sources, Conversations with votes and reasons, Gaps, Appearance, Install (project
-  key, snippet, origin allowlist, daily token budget, install verification), Members
-  and roles, Notifications.
+- Sources and Written answers, Actions, Conversations with votes, reasons and
+  filters, Gaps, Usage, and Settings: Appearance, Install (project key, snippet,
+  origin allowlist, daily token budget, install verification), Members and roles,
+  Notifications, Identity, Answer style, Visitor data, Topics, Retention.
+- Usage: questions, conversations and visitors over a period against the period
+  before, split by the context your pages attach, grouped into topics you name, with
+  signed-in visitors listed by name. Every number opens the conversations behind it.
 - Gaps: unanswered, downvoted and weakly answered questions clustered by meaning, with
   trend against the previous period, resolve and reopen, model-written findings and
   recommendations, and export as CSV or as an eval dataset.
@@ -125,6 +137,8 @@
   in with Google is optional and env-gated: a login method, not identity-provider SSO.
 - Widget abuse protection: origin allowlist, per-IP and per-project rate limits, daily
   token budgets. Ingested content is data, never instructions.
+- Conversation retention: a window in days per project, off by default; the worker
+  removes older conversations hourly, messages and tool calls included.
 
 ## How it works
 
